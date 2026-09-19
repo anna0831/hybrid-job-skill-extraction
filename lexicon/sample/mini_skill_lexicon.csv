@@ -1,0 +1,23 @@
+Skill_ID,Skill_Name,Skill_Name_ZH,Skill_Type,Skill_Category,Category_Code,Category_Name,Subcategory_Code,Subcategory_Name,Keywords
+KS120L96KMYTDJ48NRSH,Software Development,軟體開發,Hard Skill,Advanced Computer Skills,17,Information Technology,1701,Software Engineering,軟體工程｜程式設計｜後端開發｜前端開發
+KS1212B6QR5SK1LSD4S4,Business Development,商業開發,Hard Skill,Management Skills,15,Business and Management,1501,Business Operations,業務開發｜商務拓展｜業務推廣
+KS1270P6SLFCFT476Y3R,New Product Development,新產品開發,Hard Skill,Management Skills,15,Business and Management,1502,Product Strategy,產品開發｜新產品導入｜NPI
+KS1269J6YQG4J3V5YGGW,Mechanical Design,機構設計,Hard Skill,Technical Support Skills,14,Manufacturing and Production,1401,Mechanical Engineering,機構工程｜CAD繪圖｜模具設計
+KS121X369RKT17LSJNZX,Circuit Design,電路設計,Hard Skill,Technical Support Skills,14,Manufacturing and Production,1402,Electrical Engineering,電子電路｜PCB設計｜硬體設計
+KS122SP76CJCX9T70P6B,Interior Design,室內設計,Hard Skill,Technical Support Skills,18,Design and Media,1801,Architecture and Interior,空間設計｜裝潢工程｜裝修設計
+KS124H46Q2PP8YC1WQ06,Graphic Design,平面設計,Hard Skill,Technical Support Skills,18,Design and Media,1802,Visual Design,視覺傳達｜美編設計｜商業設計
+TW_MFG_001,Machine Operation,機台操作,Hard Skill,Technical Support Skills,14,Manufacturing and Production,1403,Production Line,機台保養｜產線作業｜機台架設
+KS1289C6QS0TSSB4PNGG,Quality Management,品質管理,Hard Skill,Management Skills,15,Business and Management,1503,Quality Assurance,品保管理｜品質控制｜QA/QC
+KS1282X64QGHTFWQ8J2Y,Production Management,生產管理,Hard Skill,Management Skills,15,Business and Management,1504,Operations Management,產線管理｜製造管理｜生產排程
+KS120000000000000001,Compensation Management,薪資管理,Hard Skill,Financial Skills,16,Human Resources and Finance,1601,Payroll,薪資計算｜薪資作業｜勞健保作業
+KS120000000000000002,Training and Development,訓練與發展,Hard Skill,Management Skills,15,Business and Management,1505,HR Development,教育訓練規劃｜人才培育｜員工培訓
+KS120000000000000003,Scientific Research,研究,Hard Skill,Cognitive Skills,11,Research and Analysis,1101,R&D,科學研究｜學術研究｜實驗分析
+KS120000000000000004,Equipment Maintenance,設備維護,Hard Skill,Technical Support Skills,14,Manufacturing and Production,1404,Maintenance,設備保養｜機台維修｜儀器校正
+KS120000000000000005,Communication Skills,溝通,Soft Skill,Social Skills,12,Interpersonal Skills,1201,Communication,協調溝通｜跨部門溝通｜溝通表達
+KS120000000000000006,Cleaning Services,清潔,Hard Skill,Technical Support Skills,19,Services,1901,Housekeeping,環境清潔｜清潔維護｜打掃服務
+KS120000000000000007,Python,Python,Hard Skill,Advanced Computer Skills,17,Information Technology,1702,Programming Languages,Python開發｜Python程式設計
+KS120000000000000008,SQL,SQL,Hard Skill,Advanced Computer Skills,17,Information Technology,1703,Database,資料庫管理｜SQL語法｜關聯式資料庫
+KS120000000000000009,Haircut and Styling,剪髮服務,Hard Skill,Technical Support Skills,19,Services,1902,Personal Care,美髮造型｜剪髮技巧｜剪染燙護｜剪髮｜染髮｜洗髮
+KS120000000000000010,Dispensing Medication,藥品調劑,Hard Skill,Technical Support Skills,20,Healthcare,2001,Pharmacy,調劑處方｜處方調配｜藥事服務
+KS120000000000000011,Customer Reception,會客登記,Hard Skill,Social Skills,12,Interpersonal Skills,1202,Front Desk,訪客登記｜換證管理｜門禁登記
+KS120000000000000012,Vehicle Refueling,車輛加油,Hard Skill,Technical Support Skills,19,Services,1903,Transportation,加油作業｜油箱加油｜車輛維護

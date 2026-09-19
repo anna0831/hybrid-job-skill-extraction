@@ -1,0 +1,220 @@
+# 規則設定檔：解耦業務知識與 Python 程式碼
+
+# 台灣製造/品質領域重要 2 字詞，jieba 預設不認識會拆開，需強制加入詞典 (freq=1000)
+jieba_2char_whitelist:
+  - "製程"
+  - "量試"
+  - "試作"
+  - "送樣"
+  - "首件"
+  - "稼働"
+  - "治具"
+  - "備料"
+  - "備件"
+  - "標案"
+  - "採購"
+  - "詢價"
+  - "驗收"
+  - "輪班"
+  - "物性"
+  - "化性"
+  - "採樣"
+
+# 有意義的 2 字中文技能關鍵字白名單（一般規則：中文 < 3 字會被過濾；此白名單例外放行）
+zh_2char_skill_allowlist:
+  # 業務/行銷/研發
+  - "銷售"
+  - "行銷"
+  - "推廣"
+  - "開發"
+  - "研發"
+  - "設計"
+  - "繪圖"
+  - "建模"
+  # 生產/製造/工程
+  - "生產"
+  - "製造"
+  - "組裝"
+  - "加工"
+  - "備料"
+  - "安裝"
+  - "品管"
+  - "稽核"
+  - "檢驗"
+  - "管控"
+  - "採購"
+  - "倉儲"
+  - "物流"
+  - "配送"
+  - "財務"
+  - "會計"
+  - "人資"
+  - "薪資"
+  - "維修"
+  - "保養"
+  - "操作"
+  - "校正"
+  - "翻譯"
+  - "口譯"
+  # 餐飲外場
+  - "跑單"
+  - "擺盤"
+  - "送餐"
+  - "帶位"
+  - "倒水"
+  - "點餐"
+  - "收銀"
+  - "結帳"
+  # 照顧服務／清潔衛生
+  - "消毒"
+  - "更衣"
+  - "沐浴"
+  - "巡邏"
+  - "督導"
+  - "班長"
+  # 美髮
+  - "剪髮"
+  - "染髮"
+  - "洗髮"
+  - "燙髮"
+  - "護髮"
+  # 餐飲清潔與補充
+  - "洗碗"
+  - "打掃"
+  - "傳票"
+  - "立帳"
+  - "分錄"
+  - "良率"
+  - "沖帳"
+  - "備菜"
+  - "打餐"
+  - "舌診"
+  - "脈診"
+  - "刷手"
+  - "煎肉"
+  - "試教"
+  - "清潔"
+  - "洗車"
+  - "推銷"
+
+# 頓號/句點列舉展開共用字尾
+enum_suffixes:
+  - "服務"
+  - "作業"
+  - "管理"
+  - "處理"
+  - "工作"
+  - "技巧"
+  - "能力"
+  - "維護"
+  - "操作"
+  - "製作"
+  - "訓練"
+  - "分析"
+  - "規劃"
+  - "執行"
+  - "經驗"
+
+# 就近文意規則 (Local Context Rules)
+local_context_rules:
+  "開發":
+    - pattern: "產品[之的]?開發"
+      skill_id: "KS1270P6SLFCFT476Y3R"  # 新產品開發
+
+# 職稱消歧規則 (Title Disambiguation)
+title_disambiguation:
+  "開發":
+    - title_keywords: ["軟體", "韌體", "程式", "資訊", "app", "APP", "IT"]
+      skill_id: "KS120L96KMYTDJ48NRSH"  # 軟體開發
+    - title_keywords: ["業務", "銷售"]
+      skill_id: "KS1212B6QR5SK1LSD4S4"  # 商業開發
+    - title_keywords: ["產品經理", "產品企劃", "研發"]
+      skill_id: "KS1270P6SLFCFT476Y3R"  # 新產品開發
+  "設計":
+    - title_keywords: ["機構"]
+      skill_id: "KS1269J6YQG4J3V5YGGW"  # 機構設計
+    - title_keywords: ["電子", "電機", "硬體", "ic", "IC", "韌體", "類比"]
+      skill_id: "KS121X369RKT17LSJNZX"  # 電路設計
+    - title_keywords: ["室內", "裝潢"]
+      skill_id: "KS122SP76CJCX9T70P6B"  # 室內設計
+    - title_keywords: ["美編", "平面", "視覺", "ui", "UI", "ux", "UX", "廣告"]
+      skill_id: "KS124H46Q2PP8YC1WQ06"  # 平面設計
+  "操作":
+    - title_keywords: ["作業員", "技術員", "機台", "生產", "製造", "產線"]
+      skill_id: "TW_MFG_001"            # 機台操作
+  "管控":
+    - title_keywords: ["品管", "品保", "QA", "QC", "稽核", "檢驗"]
+      skill_id: "KS1289C6QS0TSSB4PNGG"  # 品質管理
+    - title_keywords: ["生產", "製造", "產線", "製程"]
+      skill_id: "KS1282X64QGHTFWQ8J2Y"  # 生產管理
+
+# Lightcast 軟體類別碼
+software_categories: [17, 370, 369, 371, 372, 373, 374, 375, 376, 377, 378, 379, 380]
+
+# 9 大類技能中文對照表
+cat9_zh_mapping:
+  "Cognitive Skills": "認知技能"
+  "Social Skills": "社交技能"
+  "Character Skills": "特質技能"
+  "Financial Skills": "財務技能"
+  "Management Skills": "管理技能"
+  "General Digital Skills": "數位技能"
+  "Technical Support Skills": "技術技能"
+  "Advanced Computer Skills": "電腦技能"
+  "AI & Big Data Skills": "AI技能"
+  "Unclassified": "其他技能"
+
+# Phase 4: 風險分流路由器設定 (Risk-based Routing Rules)
+routing_rules:
+  risk_threshold: 0.5                  # 風險閾值：>= 0.5 送入 LLM 驗證，< 0.5 直接直通放行 (PASS_THROUGH)
+  target_llm_budget_ratio: 0.20        # 預期 LLM 呼叫上限比例 (20%)
+  
+  # 高風險歧義關鍵字（多義詞、易與生活用語混淆）
+  risky_keywords:
+    - "清潔"
+    - "研究"
+    - "月薪"
+    - "底薪"
+    - "薪資"
+    - "教育訓練"
+    - "訓練"
+    - "溝通"
+    - "管理"
+    - "維護"
+    - "操作"
+
+  # 福利、待遇與日常環境特徵詞（與薪資管理、教育訓練、清潔衝突）
+  benefit_markers:
+    - "底薪"
+    - "月薪"
+    - "薪資"
+    - "待遇"
+    - "年終"
+    - "全勤"
+    - "供餐"
+    - "員工旅遊"
+    - "提供教育訓練"
+    - "勞健保"
+
+  # 學歷與學術教育機構名詞（與研究衝突）
+  academic_markers:
+    - "研究所"
+    - "大學畢業"
+    - "碩士以上"
+    - "博士學位"
+    - "學士"
+
+  # 跨團隊協作者與介面角色標記（防止將協作夥伴技能歸屬於應徵者）
+  collaborator_markers:
+    - "配合後端"
+    - "配合前端"
+    - "與後端"
+    - "與前端"
+    - "後端 Python"
+    - "協助工程師"
+
+  # 高信賴度來源欄位（直接降低風險分數）
+  high_trust_sources:
+    - "工作技能"
+    - "擅長工具"
+    - "工具欄"

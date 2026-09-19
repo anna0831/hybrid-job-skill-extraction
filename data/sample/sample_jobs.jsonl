@@ -1,0 +1,7 @@
+{"id": "JOB_001", "county": "臺北市", "job_title": "Python後端工程師", "job_desc": "負責後端 API 開發與架構規劃，需熟悉 Python 與 SQL 資料庫調優。具備跨部門溝通協調能力者佳。", "job_skills": "Python, SQL, 軟體開發", "tools": "Python, PostgreSQL, Git", "sample_type": "high_machine_skill_count"}
+{"id": "JOB_002", "county": "臺中市", "job_title": "行政會計專員", "job_desc": "負責日常總務事務、會客登記與訪客接待。底薪 32000 元，月薪 35,000 元含全勤。公司提供完整教育訓練與員工旅遊。", "job_skills": "訪客登記, 文書處理", "tools": "Excel, Word", "sample_type": "risky_keyword"}
+{"id": "JOB_003", "county": "彰化縣", "job_title": "塑膠射出機台操作員", "job_desc": "產線機台操作、日常設備保養與生產排程跟進。工作環境需保持清潔整齊。要求研究所畢業尤佳。", "job_skills": "機台操作", "tools": "傳統車床", "sample_type": "risky_keyword"}
+{"id": "JOB_004", "county": "高雄市", "job_title": "美髮造型設計師", "job_desc": "具備三年以上沙龍現場經驗，提供專業剪、染、洗服務與顧客造型諮詢。", "job_skills": "剪髮, 染髮", "tools": "美髮器材", "sample_type": "random"}
+{"id": "JOB_005", "county": "新竹市", "job_title": "演算法研發研究員", "job_desc": "負責深度學習模型前瞻研究與科學文獻探討，主導新產品之開發與技術論文發表。", "job_skills": "深度學習, 演算法研究", "tools": "PyTorch, Python", "sample_type": "high_machine_skill_count"}
+{"id": "JOB_006", "county": "桃園市", "job_title": "物流司機隨車員", "job_desc": "負責貨物裝卸與車輛加油作業，需具備良好體力與抗壓性，配合加班調度。", "job_skills": "貨物搬運", "tools": "手排小貨車", "sample_type": "low_machine_skill_count"}
+{"id": "JOB_007", "county": "臺南市", "job_title": "機構研發助理", "job_desc": "協助工程師進行產品機構外殼開發與公差計算，能配合現場試模與修改。", "job_skills": "", "tools": "AutoCAD", "sample_type": "low_machine_skill_count"}

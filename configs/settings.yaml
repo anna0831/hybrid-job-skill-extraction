@@ -1,0 +1,28 @@
+# 全域與模型設定檔
+project_name: "hybrid-job-skill-extraction"
+version: "1.0.0"
+
+# 預設路徑設定
+paths:
+  sample_lexicon: "lexicon/sample/mini_skill_lexicon.csv"
+  full_lexicon: "詞庫skill_lexicon_v13_20260915.xlsx"
+  sample_data: "data/sample/sample_jobs.jsonl"
+  output_dir: "outputs"
+
+# AC 匹配門檻設定
+ac_matcher:
+  min_zh_len: 3
+  min_en_len: 2
+  min_stem_len: 7
+  jieba_custom_freq: 1000
+
+# 隨機種子 (Reproducibility)
+random_seed: 42
+
+# 成本安全配置 (Cost Safety Requirements)
+cost_safety:
+  allow_paid_api: false                # 絕對禁止未經授權之付費 API 呼叫
+  default_llm_provider: "mock"         # 預設一律使用本地確定性 MockLLMVerifier ($0 成本)
+  enable_cloud_billing: false          # 嚴禁啟用任何雲端計費
+  allow_ai_credit_overage: false       # 嚴禁超額扣除 AI 點數
+  local_fallback: true                 # 優先使用本機離線規則與 Mock 模型
