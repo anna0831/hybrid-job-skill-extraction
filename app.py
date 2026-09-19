@@ -216,12 +216,13 @@ def main():
     # ==========================================
     with tab2:
         st.subheader("📁 批次 104 檔案處理 (Excel / CSV)")
-        st.caption("適合研究助理日常批次處理職缺資料。上傳原始檔案，一鍵輸出包含 9 大類技能的標準寬表格。")
+        st.caption("專為研究助理日常批次處理職缺資料設計。上傳原始檔案，一鍵輸出包含 9 大類技能的標準寬表格。")
 
         uploaded_file = st.file_uploader(
             "請上傳 104 職缺檔案 (.xlsx, .csv, .jsonl)",
             type=["xlsx", "csv", "jsonl"],
             help="檔案需包含職稱與工作內容相關欄位",
+            key="batch_file_uploader",
         )
 
         col_c, col_d = st.columns(2)
@@ -231,23 +232,45 @@ def main():
             month_input = st.text_input("預設月份 (若檔名未包含)", value="2026-09")
 
         if uploaded_file is not None:
+            # 強健讀取各類編碼與格式 (自動處理台灣 104 常見之 CP950 / Big5 / UTF-8)
+            df_raw = None
             try:
-                if uploaded_file.name.endswith(".csv"):
-                    df_raw = pd.read_csv(uploaded_file)
-                elif uploaded_file.name.endswith(".jsonl"):
-                    df_raw = pd.read_json(uploaded_file, lines=True)
+                name_lower = uploaded_file.name.lower()
+                uploaded_file.seek(0)
+                if name_lower.endswith(".csv"):
+                    for enc in ["utf-8-sig", "utf-8", "cp950", "big5", "gb18030"]:
+                        try:
+                            uploaded_file.seek(0)
+                            df_raw = pd.read_csv(uploaded_file, encoding=enc)
+                            break
+                        except Exception:
+                            continue
+                    if df_raw is None:
+                        uploaded_file.seek(0)
+                        df_raw = pd.read_csv(uploaded_file)
+                elif name_lower.endswith(".jsonl") or name_lower.endswith(".json"):
+                    uploaded_file.seek(0)
+                    df_raw = pd.read_json(uploaded_file, lines=name_lower.endswith(".jsonl"))
                 else:
-                    df_raw = pd.read_excel(uploaded_file)
+                    uploaded_file.seek(0)
+                    df_raw = pd.read_excel(uploaded_file, engine="openpyxl")
+            except Exception as read_err:
+                st.error(f"❌ 檔案讀取失敗：{str(read_err)}。請確認檔案是否損毀或格式不符。")
 
-                st.write(f"成功讀取檔案！共 **{len(df_raw)}** 筆職缺資料。")
-                st.dataframe(df_raw.head(3), use_container_width=True)
+            if df_raw is not None:
+                st.success(f"✅ 成功讀取檔案 **{uploaded_file.name}**！共 **{len(df_raw)}** 筆職缺資料。")
 
-                if st.button("🚀 執行批次技能擷取", type="primary"):
+                # 醒目的執行按鈕，置於最上方
+                btn_col1, btn_col2 = st.columns([1, 2])
+                with btn_col1:
+                    run_batch = st.button("🚀 執行批次技能擷取", type="primary", use_container_width=True)
+
+                if run_batch:
                     progress_bar = st.progress(0)
                     status_text = st.empty()
 
                     t_start_batch = time.time()
-                    with st.spinner("正在進行批次比對與寬表格聚合..."):
+                    with st.spinner("正在進行多模式比對、風險分流與 9 大類寬表格聚合..."):
                         long_df, wide_df, stats = pipeline.process_dataframe(
                             df_raw, county=county_input, month=month_input
                         )
@@ -255,27 +278,34 @@ def main():
 
                     batch_duration = time.time() - t_start_batch
                     status_text.success(
-                        f"🎉 批次處理完成！耗時 {batch_duration:.2f} 秒 (平均 {batch_duration/len(df_raw)*1000:.2f} ms/doc)"
+                        f"🎉 批次處理完成！耗時 {batch_duration:.2f} 秒 (平均 {batch_duration/max(len(df_raw), 1)*1000:.2f} ms/doc)"
                     )
+                    st.session_state[f"wide_df_{uploaded_file.name}"] = wide_df
 
-                    st.markdown("### 📊 寬表格產出預覽 (前 5 筆)")
-                    st.dataframe(wide_df.head(5), use_container_width=True)
-
-                    # 匯出 Excel
+                # 若已有處理結果，持久顯示下載按鈕與預覽
+                cached_wide_df = st.session_state.get(f"wide_df_{uploaded_file.name}")
+                if cached_wide_df is not None:
+                    st.markdown("### 📥 下載與結果預覽")
                     output_buffer = io.BytesIO()
                     with pd.ExcelWriter(output_buffer, engine="openpyxl") as writer:
-                        wide_df.to_excel(writer, index=False, sheet_name="9大類技能寬表格")
+                        cached_wide_df.to_excel(writer, index=False, sheet_name="9大類技能寬表格")
                     excel_data = output_buffer.getvalue()
 
                     st.download_button(
-                        label="📥 下載 9 大類技能寬表格 (.xlsx)",
+                        label="📥 點此下載 9 大類技能寬表格 (.xlsx)",
                         data=excel_data,
                         file_name=f"skills_{uploaded_file.name.rsplit('.', 1)[0]}_wide.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         type="primary",
+                        use_container_width=True,
                     )
-            except Exception as e:
-                st.error(f"檔案處理失敗：{str(e)}")
+
+                    st.markdown("#### 📊 寬表格產出預覽 (前 5 筆)")
+                    st.dataframe(cached_wide_df.head(5), use_container_width=True)
+
+                # 原始資料預覽折疊區
+                with st.expander("🔍 檢視原始上傳資料前 3 筆", expanded=(cached_wide_df is None)):
+                    st.dataframe(df_raw.head(3), use_container_width=True)
 
     # ==========================================
     # Tab 3: 成效與消融實驗
