@@ -167,6 +167,75 @@ class HybridJobSkillPipeline:
         routing_res.fn_recovery_result = fn_recovery_res
         return final_skills, routing_res, verification_records
 
+    def diagnose_job_description(
+        self,
+        job_title: str,
+        job_desc: str,
+        tools: str = "",
+        job_skills: str = "",
+        job_id: str = "DIAGNOSTIC_JOB",
+    ) -> FNRecoveryResult:
+        """Task 1 專用：診斷單一職缺之假陰性短語並回傳完整對齊報告。"""
+        texts = [clean_text(job_desc), clean_text(job_skills), clean_text(tools)]
+        clean_title = clean_text(job_title)
+
+        # 1. 執行 AC 匹配
+        ac_cands = self.matcher.extract_job_skills(texts, job_title=clean_title)
+        ac_keywords = [c.matched_keyword for c in ac_cands]
+
+        # 2. 執行語意概念接地與假陰性診斷
+        fn_res = self.grounder.recover_job_skills(
+            job_id=job_id,
+            job_title=clean_title,
+            job_desc=texts[0],
+            tools=texts[2],
+            job_skills=texts[1],
+            existing_candidate_texts=ac_keywords,
+        )
+
+        # 補充 AC 匹配結果標記
+        for s_item in fn_res.semantic_items:
+            s_item.ac_result = "None" if not ac_keywords else f"AC已匹配: {', '.join(ac_keywords)}"
+
+        return fn_res
+
+    def generate_review_table(
+        self, fn_results: List[FNRecoveryResult]
+    ) -> pd.DataFrame:
+        """Task 5: 從 FNRecoveryResult 清單生成 Human Review Table。"""
+        from src.grounding.review_table import build_review_table
+
+        records = []
+        for fn_res in fn_results:
+            for s_item in fn_res.semantic_items:
+                records.append({
+                    "job_title": fn_res.job_title,
+                    "item": s_item,
+                })
+        return build_review_table(records)
+
+    def export_keyword_candidates(
+        self,
+        fn_results: List[FNRecoveryResult],
+        output_path: str = "outputs/keyword_candidates.csv",
+        confidence_threshold: float = 0.80,
+    ) -> pd.DataFrame:
+        """Task 6: 將高置信度 MATCH 項目輸出至 outputs/keyword_candidates.csv。"""
+        from src.grounding.expansion import KeywordCandidateManager
+
+        manager = KeywordCandidateManager(output_path=output_path)
+        records = []
+        for fn_res in fn_results:
+            for s_item in fn_res.semantic_items:
+                records.append({
+                    "job_title": fn_res.job_title,
+                    "item": s_item,
+                    "discovery_method": "SEMANTIC_RECOVERY_HYBRID",
+                })
+        return manager.export_candidates(
+            records=records, confidence_threshold=confidence_threshold
+        )
+
     def process_dataframe(
         self, df: pd.DataFrame, county: str = "unknown", month: str = "unknown"
     ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
@@ -184,6 +253,8 @@ class HybridJobSkillPipeline:
         skill_col = find_col(["工作技能", "job_skills"], default="job_skills")
 
         records = []
+        fn_results: List[FNRecoveryResult] = []
+
         for i, row in df.iterrows():
             job_id = str(row.get(id_col, f"JOB_{i}"))
             title = str(row.get(title_col, ""))
@@ -191,13 +262,16 @@ class HybridJobSkillPipeline:
             tools = str(row.get(tool_col, ""))
             skills = str(row.get(skill_col, ""))
 
-            final_skills, _, _ = self.extract_job_skills(
+            final_skills, routing_res, _ = self.extract_job_skills(
                 job_id=job_id,
                 job_title=title,
                 job_desc=desc,
                 tools=tools,
                 job_skills=skills,
             )
+
+            if routing_res.fn_recovery_result:
+                fn_results.append(routing_res.fn_recovery_result)
 
             for cand in final_skills:
                 records.append({
@@ -206,6 +280,13 @@ class HybridJobSkillPipeline:
                     "月份": month,
                     **cand.to_dict(),
                 })
+
+        # 自動產出/更新審核表與候選關鍵字
+        if fn_results:
+            try:
+                self.export_keyword_candidates(fn_results)
+            except Exception as e:
+                logger.warning(f"自動匯出關鍵字候選失敗: {e}")
 
         long_df = pd.DataFrame(records)
         wide_df = skills_to_wide(long_df, df, cat9_mapping=self.cat9_mapping)

@@ -20,15 +20,17 @@ class ConceptDiscoverer:
 
     # 常見技能與方法論字尾模式 (Chinese Skill Suffix Patterns)
     SKILL_PATTERNS = [
-        re.compile(r"[\u4e00-\u9fa5]{2,6}(?:管制|排查|調校|量測|優化|改善|分析|開發|維護|管理|設計|測試|演算|建模)"),
-        re.compile(r"\b[A-Za-z0-9\+\#\.\-]{2,15}\b"),  # 英文縮寫與專有名詞，如 SPC, JMP, CI/CD, PyTorch
+        re.compile(r"[\u4e00-\u9fa5]{2,10}(?:管制|排查|調校|量測|優化|改善|分析|開發|維護|管理|設計|測試|演算|建模|製作|撰寫|建置|協調|溝通)"),
+        re.compile(r"(?:撰寫|製作|規劃|建置|維護|操作|設計|開發|分析)[\u4e00-\u9fa5]{2,8}"),
+        re.compile(r"\b[A-Za-z0-9\+\#\.\-]+(?:\s+[A-Za-z0-9\+\#\.\-]+){1,5}\b"),  # 英文複合工作短語，如 Documents creation, Board debug
+        re.compile(r"\b[A-Za-z0-9\+\#\.\-]{2,15}\b"),  # 英文縮寫與專有名詞，如 SPC, JMP, CI/CD, PyTorch, BOM
     ]
 
     # 常見非技能干擾詞 (Stopwords / False Alarm Patterns)
     STOP_PHRASES = {
         "工作環境", "公司提供", "工作內容", "相關經驗", "相關科系", "良好體力",
-        "配合排班", "夜間排班", "男女不拘", "無經驗可", "抗壓性高", "溝通能力",
-        "主導", "負責", "協助", "具備", "熟悉", "配合", "執行", "確保",
+        "配合排班", "夜間排班", "男女不拘", "無經驗可", "抗壓性高",
+        "主導", "負責", "協助", "具備", "熟悉", "配合", "執行", "確保", "工作", "內容",
     }
 
     def __init__(self, stopwords: Optional[set] = None):
@@ -54,14 +56,13 @@ class ConceptDiscoverer:
         Returns:
             DiscoveredConcept 物件清單
         """
-        existing_set = set(t.lower() for t in (existing_candidate_texts or []))
+        existing_set = set(t.lower().strip() for t in (existing_candidate_texts or []))
         discovered: Dict[str, DiscoveredConcept] = {}
 
         # 1. 優先從 104 結構化欄位 (job_skills, tools) 抽取
         for field_name, field_text in [("tools", tools), ("job_skills", job_skills)]:
             if not field_text:
                 continue
-            # 以逗號、頓號、分號切割
             parts = re.split(r"[,、;/\s]+", field_text)
             for part in parts:
                 p_clean = clean_text(part)
@@ -73,31 +74,59 @@ class ConceptDiscoverer:
                         source_field=field_name,
                     )
 
-        # 2. 從職位描述 (job_desc) 進行模式比對與斷句抽取
-        sentences = re.split(r"[。！？\n]+", job_desc)
+        # 2. 逐行分析職位描述 (job_desc) 中的列舉項目 (如 1. Server Design, 2. Board debug ...)
+        raw_lines = job_desc.splitlines()
+        for raw_line in raw_lines:
+            line_str = raw_line.strip()
+            if not line_str:
+                continue
+
+            # 檢測條列編號 (如 1. xxx, 2. xxx, - xxx, • xxx)
+            bullet_match = re.match(r"^(?:\d+[\.、\)\s]+|[-*•]\s*)(.+)$", line_str)
+            if bullet_match:
+                item_text = bullet_match.group(1).strip()
+                item_clean = clean_text(item_text)
+                item_lower = item_clean.lower()
+                if (
+                    len(item_clean) >= 2
+                    and item_lower not in existing_set
+                    and item_clean not in self.stopwords
+                    and not item_clean.isdigit()
+                ):
+                    discovered[item_lower] = DiscoveredConcept(
+                        concept_text=item_clean,
+                        quote_evidence=raw_line.strip(),
+                        confidence=0.85,
+                        source_field="job_desc_bullet",
+                    )
+
+        # 3. 從斷句中進行正規表達式模式比對
+        sentences = re.split(r"[。！？\n\r]+", job_desc)
         for sent in sentences:
             sent_clean = clean_text(sent)
             if not sent_clean:
                 continue
 
-            # 比對中文技能模式與英文專業名詞
+            # 比對中文技能模式與英文短語
             for pattern in self.SKILL_PATTERNS:
                 for match in pattern.finditer(sent_clean):
                     phrase = match.group(0).strip()
-                    phrase_lower = phrase.lower()
+                    phrase_clean = clean_text(phrase)
+                    phrase_lower = phrase_clean.lower()
 
-                    # 過濾過短、停用詞或已被 AC 命中詞
-                    if len(phrase) < 2 or phrase_lower in existing_set or phrase in self.stopwords:
-                        continue
-
-                    # 過濾純數字或常見標點
-                    if phrase.isdigit():
+                    # 過濾過短、純數字、停用詞或完全已被 AC 命中詞
+                    if (
+                        len(phrase_clean) < 2
+                        or phrase_lower in existing_set
+                        or phrase_clean in self.stopwords
+                        or phrase_clean.isdigit()
+                    ):
                         continue
 
                     if phrase_lower not in discovered:
                         discovered[phrase_lower] = DiscoveredConcept(
-                            concept_text=phrase,
-                            quote_evidence=sent_clean,
+                            concept_text=phrase_clean,
+                            quote_evidence=sent.strip(),
                             confidence=0.8,
                             source_field="job_desc",
                         )

@@ -201,14 +201,33 @@ def main():
                     else:
                         st.markdown("*(本職缺候選詞皆為低風險直通，無需調用模型審查)*")
 
-                # 3. 概念接地結果
-                if routing_res.fn_recovery_result and routing_res.fn_recovery_result.recovered_skill_ids:
-                    st.markdown("#### 3. 假陰性概念接地召回 (Stage 2 Grounded)")
-                    for dec in routing_res.fn_recovery_result.decisions:
-                        if dec.status.value == "GROUNDED":
-                            st.success(
-                                f"🎯 成功將口語/專業縮寫 **'{dec.concept_text}'** 接地映射至詞庫標準詞：**{dec.selected_skill_name_zh}** (ID: `{dec.selected_skill_id}`)  \n"
-                                f"理由: {dec.reason}"
+                # 3. 概念接地與語意審核表
+                if routing_res.fn_recovery_result:
+                    fn_res = routing_res.fn_recovery_result
+                    if fn_res.recovered_skill_ids:
+                        st.markdown("#### 3. 假陰性概念接地召回 (Stage 2 Grounded)")
+                        for dec in fn_res.decisions:
+                            if dec.status.value == "GROUNDED":
+                                st.success(
+                                    f"🎯 成功將口語/專業縮寫 **'{dec.concept_text}'** 接地映射至詞庫標準詞：**{dec.selected_skill_name_zh}** (ID: `{dec.selected_skill_id}`)  \n"
+                                    f"理由: {dec.reason}"
+                                )
+
+                    if fn_res.semantic_items:
+                        st.markdown("#### 📋 語意假陰性診斷與審核表 (Human Review Table)")
+                        review_df = pipeline.generate_review_table([fn_res])
+                        st.dataframe(review_df, use_container_width=True)
+
+                        # 自動更新並提供 keyword_candidates.csv 下載
+                        kw_df = pipeline.export_keyword_candidates([fn_res])
+                        if not kw_df.empty:
+                            csv_data = kw_df.to_csv(index=False, encoding="utf-8-sig")
+                            st.download_button(
+                                label="📥 下載新發現關鍵字候選表 (keyword_candidates.csv)",
+                                data=csv_data,
+                                file_name="keyword_candidates.csv",
+                                mime="text/csv",
+                                key="download_kw_tab1",
                             )
 
     # ==========================================
@@ -299,6 +318,21 @@ def main():
                         type="primary",
                         use_container_width=True,
                     )
+
+                    if os.path.exists("outputs/keyword_candidates.csv"):
+                        try:
+                            kw_df_batch = pd.read_csv("outputs/keyword_candidates.csv")
+                            if not kw_df_batch.empty:
+                                st.download_button(
+                                    label="📑 點此下載語意新發現關鍵字候選表 (keyword_candidates.csv)",
+                                    data=kw_df_batch.to_csv(index=False, encoding="utf-8-sig"),
+                                    file_name="keyword_candidates.csv",
+                                    mime="text/csv",
+                                    use_container_width=True,
+                                    key="download_kw_tab2",
+                                )
+                        except Exception:
+                            pass
 
                     st.markdown("#### 📊 寬表格產出預覽 (前 10 筆)")
                     st.dataframe(cached_wide_df.head(10), use_container_width=True)

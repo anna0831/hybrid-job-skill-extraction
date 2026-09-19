@@ -12,6 +12,8 @@ from src.grounding.schemas import (
     DiscoveredConcept,
     GroundingDecision,
     GroundingStatus,
+    DecisionType,
+    SemanticRecoveryItem,
     FNRecoveryResult,
 )
 from src.grounding.grounder import ConceptGrounder
@@ -71,35 +73,58 @@ class BaseConceptGrounder(ABC):
                 job_title=job_title,
                 discovered_concepts=[],
                 decisions=[],
+                semantic_items=[],
                 recovered_skill_ids=[],
                 stats={"total_discovered": 0, "recovered_count": 0},
             )
 
-        # 2. 執行接地判定
+        # 2. 針對各短語執行語意診斷 (Task 1 Diagnostic Items)
+        semantic_items: List[SemanticRecoveryItem] = []
+        for c in concepts:
+            s_item = self.grounder.diagnose_phrase(
+                original_phrase=c.concept_text,
+                job_title=job_title,
+                quote_evidence=c.quote_evidence,
+                ac_result="None",
+            )
+            semantic_items.append(s_item)
+
+        # 3. 執行接地判定
         raw_decisions = self.ground_concepts(
             job_title=job_title, job_desc=job_desc, concepts=concepts
         )
 
-        # 3. 嚴格防偽過濾與聚合
+        # 4. 嚴格防偽過濾與聚合
         validated_decisions: List[GroundingDecision] = []
         recovered_ids: List[str] = []
 
-        for dec in raw_decisions:
+        for dec, s_item in zip(raw_decisions, semantic_items):
+            dec.semantic_item = s_item
             v_dec = self.grounder.validate_grounding_decision(dec)
             validated_decisions.append(v_dec)
             if v_dec.status == GroundingStatus.GROUNDED and v_dec.selected_skill_id:
                 if v_dec.selected_skill_id not in recovered_ids:
                     recovered_ids.append(v_dec.selected_skill_id)
 
+        # 同步診斷項目之 MATCH 技能
+        for s_item in semantic_items:
+            if s_item.decision == DecisionType.MATCH and s_item.selected_skill_id:
+                if s_item.selected_skill_id in self.skill_id_index and s_item.selected_skill_id not in recovered_ids:
+                    recovered_ids.append(s_item.selected_skill_id)
+
         return FNRecoveryResult(
             job_id=job_id,
             job_title=job_title,
             discovered_concepts=concepts,
             decisions=validated_decisions,
+            semantic_items=semantic_items,
             recovered_skill_ids=recovered_ids,
             stats={
                 "total_discovered": len(concepts),
                 "recovered_count": len(recovered_ids),
+                "semantic_matched": sum(1 for s in semantic_items if s.decision == DecisionType.MATCH),
+                "semantic_uncertain": sum(1 for s in semantic_items if s.decision == DecisionType.UNCERTAIN),
+                "semantic_no_match": sum(1 for s in semantic_items if s.decision == DecisionType.NO_MATCH),
             },
         )
 
@@ -110,7 +135,7 @@ class MockConceptGrounder(BaseConceptGrounder):
     具備特定領域知識與基準測試案例映射：
     - 半導體/品管領域：『統計製程管制』、『SPC』、『全面品質管制』 -> 『品質管理』(KS1289C6QS0TSSB4PNGG)
     - 軟體開發領域：『前端頁面實作』 -> 『軟體開發』(KS120L96KMYTDJ48NRSH)
-    - 產品開發領域：『機構設計開發』、『產品外殼機構設計開發』 -> 『新產品開發』(KS1270P6SLFCFT476Y3R)
+    - 產品開發領域：『機構設計開發』、『產品外殼機構設計開發』 -> 『新產品開發』(KS1270P6SLFC76Y3R)
     """
 
     MOCK_DOMAIN_MAPPINGS = {
@@ -121,6 +146,9 @@ class MockConceptGrounder(BaseConceptGrounder):
         "前端頁面實作": "KS120L96KMYTDJ48NRSH",
         "產品外殼機構設計開發": "KS1270P6SLFCFT476Y3R",
         "設計開發": "KS1270P6SLFCFT476Y3R",
+        "board debug": "KS121X369RKT17LSJNZX",  # 電路設計
+        "server design": "KS121X369RKT17LSJNZX",  # 電路設計 / 硬體設計
+        "work with team for project development": "KS120000000000000005",  # 溝通
     }
 
     def ground_concepts(
@@ -154,7 +182,7 @@ class MockConceptGrounder(BaseConceptGrounder):
                 )
                 continue
 
-            # 2. 自動詞庫檢索比對
+            # 2. 自動詞庫檢索比對 (Hybrid 檢索)
             candidates = self.grounder.retrieve_lexicon_candidates(c.concept_text, top_k=1)
             if candidates and candidates[0].similarity_score >= 0.8:
                 cand = candidates[0]

@@ -6,10 +6,33 @@ from pydantic import BaseModel, Field
 
 
 class GroundingStatus(str, Enum):
-    """接地狀態列舉。"""
-    GROUNDED = "GROUNDED"        # 成功對齊至詞庫已知 Skill_ID
-    UNGROUNDED = "UNGROUNDED"    # 無法在詞庫中找到對應技能，強制拒絕
-    AMBIGUOUS = "AMBIGUOUS"      # 候選過多且無法確定，保守放棄
+    """接地狀態列舉 (相容既有模型)。"""
+    GROUNDED = "GROUNDED"        # 成功對齊至詞庫已知 Skill_ID (MATCH)
+    UNGROUNDED = "UNGROUNDED"    # 無法在詞庫中找到對應技能，強制拒絕 (NO_MATCH)
+    AMBIGUOUS = "AMBIGUOUS"      # 候選過多且無法確定，保守放棄 (UNCERTAIN)
+
+
+class DecisionType(str, Enum):
+    """語意假陰性召回決策類型 (Task 1 Decision Type)。"""
+    MATCH = "MATCH"
+    UNCERTAIN = "UNCERTAIN"
+    NO_MATCH = "NO_MATCH"
+
+
+class SemanticRecoveryItem(BaseModel):
+    """單一潛在假陰性短語之診斷與檢索對齊紀錄 (Task 1 & Task 5 Record)。"""
+    original_phrase: str = Field(..., description="原始短語，如 'Documents creation'")
+    normalized_phrase: str = Field(..., description="正規化短語，如 'documents creation'")
+    semantic_interpretation: str = Field(default="", description="語意概念詮釋，如 '技術文件撰寫與製作'")
+    candidate_skill_ids: List[str] = Field(default_factory=list, description="檢索出的 Top-K 候選 Skill_ID 清單")
+    candidate_skill_names: List[str] = Field(default_factory=list, description="候選技能名稱 (中/英) 清單")
+    retrieval_score: float = Field(default=0.0, description="最高候選檢索相似度分數")
+    evidence: str = Field(..., description="職缺內文原文依據引用")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="決策信心度")
+    decision: DecisionType = Field(default=DecisionType.NO_MATCH, description="決策：MATCH / UNCERTAIN / NO_MATCH")
+    selected_skill_id: Optional[str] = Field(default=None, description="若 MATCH 時選定之合法 Skill_ID")
+    selected_skill_name_zh: Optional[str] = Field(default=None, description="若 MATCH 時選定之標準中文名稱")
+    ac_result: str = Field(default="None", description="AC 匹配結果狀態（預設 None）")
 
 
 class DiscoveredConcept(BaseModel):
@@ -40,6 +63,7 @@ class GroundingDecision(BaseModel):
     quote_evidence: str = Field(default="", description="原文依據")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="接地判定信心度")
     reason: str = Field(default="", description="接地或拒絕之判定理由")
+    semantic_item: Optional[SemanticRecoveryItem] = Field(default=None, description="關聯之語意診斷項")
 
 
 class FNRecoveryResult(BaseModel):
@@ -48,5 +72,6 @@ class FNRecoveryResult(BaseModel):
     job_title: str = Field(default="", description="職稱")
     discovered_concepts: List[DiscoveredConcept] = Field(default_factory=list, description="挖掘出的概念短語清單")
     decisions: List[GroundingDecision] = Field(default_factory=list, description="接地決策清單")
+    semantic_items: List[SemanticRecoveryItem] = Field(default_factory=list, description="語意召回診斷明細清單")
     recovered_skill_ids: List[str] = Field(default_factory=list, description="最終成功召回之 Skill_ID 清單")
     stats: Dict[str, Any] = Field(default_factory=dict, description="統計數據")
