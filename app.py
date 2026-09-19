@@ -300,12 +300,12 @@ def main():
                         use_container_width=True,
                     )
 
-                    st.markdown("#### 📊 寬表格產出預覽 (前 5 筆)")
-                    st.dataframe(cached_wide_df.head(5), use_container_width=True)
+                    st.markdown("#### 📊 寬表格產出預覽 (前 10 筆)")
+                    st.dataframe(cached_wide_df.head(10), use_container_width=True)
 
                 # 原始資料預覽折疊區
-                with st.expander("🔍 檢視原始上傳資料前 3 筆", expanded=(cached_wide_df is None)):
-                    st.dataframe(df_raw.head(3), use_container_width=True)
+                with st.expander("🔍 檢視原始上傳資料前 10 筆", expanded=(cached_wide_df is None)):
+                    st.dataframe(df_raw.head(10), use_container_width=True)
 
     # ==========================================
     # Tab 3: 成效與消融實驗
