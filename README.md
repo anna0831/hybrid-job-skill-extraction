@@ -11,7 +11,7 @@
 > 一個結合 **Aho-Corasick 多模式比對**、**三軌動態風險分流（Risk-based Routing）**、**LLM 上下文語義驗證（LLM Context Verification）** 與 **兩階段概念接地（Two-Stage Concept Grounding）** 的工業級職缺技能擷取系統。
 
 🌐 **線上展示專區 (Live Demo)**：[https://anna0831-hybrid-job-skill-extraction.streamlit.app](https://anna0831-hybrid-job-skill-extraction.streamlit.app)  
-*(專為無技術背景研究助理設計：打開網頁即可貼上職缺文字預覽 9 大類標籤，或直接拖曳上傳 104 Excel/CSV 檔案批次處理並下載！)*
+*(打開網頁即可貼上職缺文字預覽 9 大類標籤，或直接拖曳上傳 104 Excel/CSV 檔案批次處理並下載！)*
 
 
 ---
