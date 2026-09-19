@@ -1,0 +1,353 @@
+{
+  "experiments": {
+    "Exp_A": {
+      "name": "Aho-Corasick Baseline",
+      "desc": "純 AC 多模式匹配 (Stage A Baseline)",
+      "overall": {
+        "precision": 91.67,
+        "recall": 66.67,
+        "micro_f1": 77.19,
+        "macro_f1": 74.67,
+        "tp": 22,
+        "fp": 2,
+        "fn": 11,
+        "latency_ms_per_doc": 0.19
+      },
+      "subgroups": {
+        "skill_count == 0": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "micro_f1": 0.0,
+          "macro_f1": 0.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "sample_count": 2
+        },
+        "skill_count == 1": {
+          "precision": 93.33,
+          "recall": 63.64,
+          "micro_f1": 75.68,
+          "macro_f1": 82.22,
+          "tp": 14,
+          "fp": 1,
+          "fn": 8,
+          "sample_count": 15
+        },
+        "English-heavy": {
+          "precision": 100.0,
+          "recall": 42.86,
+          "micro_f1": 60.0,
+          "macro_f1": 43.33,
+          "tp": 3,
+          "fp": 0,
+          "fn": 4,
+          "sample_count": 3
+        },
+        "Chinese-heavy": {
+          "precision": 93.33,
+          "recall": 77.78,
+          "micro_f1": 84.85,
+          "macro_f1": 89.49,
+          "tp": 14,
+          "fp": 1,
+          "fn": 4,
+          "sample_count": 13
+        },
+        "Mixed bilingual": {
+          "precision": 83.33,
+          "recall": 62.5,
+          "micro_f1": 71.43,
+          "macro_f1": 50.0,
+          "tp": 5,
+          "fp": 1,
+          "fn": 3,
+          "sample_count": 4
+        }
+      }
+    },
+    "Exp_B": {
+      "name": "AC + Stage B Verification",
+      "desc": "AC 候選詞 + 上下文驗證過濾 FP (Stage A + B, 無殘差召回)",
+      "overall": {
+        "precision": 100.0,
+        "recall": 66.67,
+        "micro_f1": 80.0,
+        "macro_f1": 75.67,
+        "tp": 22,
+        "fp": 0,
+        "fn": 11,
+        "latency_ms_per_doc": 0.24
+      },
+      "subgroups": {
+        "skill_count == 0": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "micro_f1": 0.0,
+          "macro_f1": 0.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "sample_count": 2
+        },
+        "skill_count == 1": {
+          "precision": 100.0,
+          "recall": 63.64,
+          "micro_f1": 77.78,
+          "macro_f1": 82.22,
+          "tp": 14,
+          "fp": 0,
+          "fn": 8,
+          "sample_count": 15
+        },
+        "English-heavy": {
+          "precision": 100.0,
+          "recall": 42.86,
+          "micro_f1": 60.0,
+          "macro_f1": 43.33,
+          "tp": 3,
+          "fp": 0,
+          "fn": 4,
+          "sample_count": 3
+        },
+        "Chinese-heavy": {
+          "precision": 100.0,
+          "recall": 77.78,
+          "micro_f1": 87.5,
+          "macro_f1": 91.03,
+          "tp": 14,
+          "fp": 0,
+          "fn": 4,
+          "sample_count": 13
+        },
+        "Mixed bilingual": {
+          "precision": 100.0,
+          "recall": 62.5,
+          "micro_f1": 76.92,
+          "macro_f1": 50.0,
+          "tp": 5,
+          "fp": 0,
+          "fn": 3,
+          "sample_count": 4
+        }
+      }
+    },
+    "Exp_C": {
+      "name": "AC + Stage B + Stage C Residual Segmentation",
+      "desc": "殘差單元切割，不執行檢索與召回 (Stage A + B + C)",
+      "overall": {
+        "precision": 100.0,
+        "recall": 66.67,
+        "micro_f1": 80.0,
+        "macro_f1": 75.67,
+        "tp": 22,
+        "fp": 0,
+        "fn": 11,
+        "latency_ms_per_doc": 0.24
+      },
+      "subgroups": {
+        "skill_count == 0": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "micro_f1": 0.0,
+          "macro_f1": 0.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "sample_count": 2
+        },
+        "skill_count == 1": {
+          "precision": 100.0,
+          "recall": 63.64,
+          "micro_f1": 77.78,
+          "macro_f1": 82.22,
+          "tp": 14,
+          "fp": 0,
+          "fn": 8,
+          "sample_count": 15
+        },
+        "English-heavy": {
+          "precision": 100.0,
+          "recall": 42.86,
+          "micro_f1": 60.0,
+          "macro_f1": 43.33,
+          "tp": 3,
+          "fp": 0,
+          "fn": 4,
+          "sample_count": 3
+        },
+        "Chinese-heavy": {
+          "precision": 100.0,
+          "recall": 77.78,
+          "micro_f1": 87.5,
+          "macro_f1": 91.03,
+          "tp": 14,
+          "fp": 0,
+          "fn": 4,
+          "sample_count": 13
+        },
+        "Mixed bilingual": {
+          "precision": 100.0,
+          "recall": 62.5,
+          "micro_f1": 76.92,
+          "macro_f1": 50.0,
+          "tp": 5,
+          "fp": 0,
+          "fn": 3,
+          "sample_count": 4
+        }
+      }
+    },
+    "Exp_D": {
+      "name": "AC + Stage B + Stage C + Stage D Hybrid Retrieval",
+      "desc": "詞庫約束雙語檢索，無 Stage E 驗證 (Stage A + B + C + D)",
+      "overall": {
+        "precision": 73.68,
+        "recall": 84.85,
+        "micro_f1": 78.87,
+        "macro_f1": 83.19,
+        "tp": 28,
+        "fp": 10,
+        "fn": 5,
+        "latency_ms_per_doc": 1.49
+      },
+      "subgroups": {
+        "skill_count == 0": {
+          "precision": 33.33,
+          "recall": 50.0,
+          "micro_f1": 40.0,
+          "macro_f1": 50.0,
+          "tp": 1,
+          "fp": 2,
+          "fn": 1,
+          "sample_count": 2
+        },
+        "skill_count == 1": {
+          "precision": 82.61,
+          "recall": 86.36,
+          "micro_f1": 84.44,
+          "macro_f1": 88.33,
+          "tp": 19,
+          "fp": 4,
+          "fn": 3,
+          "sample_count": 15
+        },
+        "English-heavy": {
+          "precision": 41.67,
+          "recall": 71.43,
+          "micro_f1": 52.63,
+          "macro_f1": 41.67,
+          "tp": 5,
+          "fp": 7,
+          "fn": 2,
+          "sample_count": 3
+        },
+        "Chinese-heavy": {
+          "precision": 100.0,
+          "recall": 88.89,
+          "micro_f1": 94.12,
+          "macro_f1": 94.87,
+          "tp": 16,
+          "fp": 0,
+          "fn": 2,
+          "sample_count": 13
+        },
+        "Mixed bilingual": {
+          "precision": 70.0,
+          "recall": 87.5,
+          "micro_f1": 77.78,
+          "macro_f1": 76.39,
+          "tp": 7,
+          "fp": 3,
+          "fn": 1,
+          "sample_count": 4
+        }
+      }
+    },
+    "Exp_E": {
+      "name": "Full Redesigned System (Stage A -> E)",
+      "desc": "完整系統：AC + 雙語上下文驗證 + 殘差單元切割 + 雙語檢索 + 語意決策驗證",
+      "overall": {
+        "precision": 76.47,
+        "recall": 78.79,
+        "micro_f1": 77.61,
+        "macro_f1": 82.08,
+        "tp": 26,
+        "fp": 8,
+        "fn": 7,
+        "latency_ms_per_doc": 1.45
+      },
+      "subgroups": {
+        "skill_count == 0": {
+          "precision": 33.33,
+          "recall": 50.0,
+          "micro_f1": 40.0,
+          "macro_f1": 50.0,
+          "tp": 1,
+          "fp": 2,
+          "fn": 1,
+          "sample_count": 2
+        },
+        "skill_count == 1": {
+          "precision": 85.0,
+          "recall": 77.27,
+          "micro_f1": 80.95,
+          "macro_f1": 86.11,
+          "tp": 17,
+          "fp": 3,
+          "fn": 5,
+          "sample_count": 15
+        },
+        "English-heavy": {
+          "precision": 41.67,
+          "recall": 71.43,
+          "micro_f1": 52.63,
+          "macro_f1": 41.67,
+          "tp": 5,
+          "fp": 7,
+          "fn": 2,
+          "sample_count": 3
+        },
+        "Chinese-heavy": {
+          "precision": 100.0,
+          "recall": 77.78,
+          "micro_f1": 87.5,
+          "macro_f1": 91.03,
+          "tp": 14,
+          "fp": 0,
+          "fn": 4,
+          "sample_count": 13
+        },
+        "Mixed bilingual": {
+          "precision": 87.5,
+          "recall": 87.5,
+          "micro_f1": 87.5,
+          "macro_f1": 83.33,
+          "tp": 7,
+          "fp": 1,
+          "fn": 1,
+          "sample_count": 4
+        }
+      }
+    }
+  },
+  "cost_and_latency_audit": {
+    "total_jobs": 100,
+    "llm_calls": 4,
+    "llm_call_rate": 0.04,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0,
+    "total_latency_ms": 72.17,
+    "avg_latency_ms": 0.72,
+    "estimated_cost_usd": 0.0,
+    "cost_per_1k_jobs_usd": 0.0
+  },
+  "semantic_recovery_summary": {
+    "recovered_matches": 20,
+    "uncertain_cases": 36,
+    "rejected_no_match": 88,
+    "review_table_path": "outputs/human_review_table.csv",
+    "keyword_candidates_path": "outputs/keyword_candidates.csv"
+  }
+}

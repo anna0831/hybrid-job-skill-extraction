@@ -149,6 +149,7 @@ class ACMatcher:
                             field_source=label,
                             start_pos=cand["start"],
                             end_pos=cand["end"],
+                            original_text=raw_text,
                         )
                     )
 

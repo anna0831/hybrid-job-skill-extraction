@@ -45,6 +45,8 @@ class HybridJobSkillPipeline:
         risk_threshold: Optional[float] = None,
         enable_cache: bool = True,
         enable_fn_recovery: bool = True,
+        bypass_verification: bool = False,
+        disable_retrieval: bool = False,
     ):
         self.lexicon_path = lexicon_path
         self.rules_path = rules_path
@@ -70,12 +72,21 @@ class HybridJobSkillPipeline:
             provider=verifier_provider, cache=self.cache
         )
 
-        # 4. 初始化 Phase 5 兩階段概念接地與假陰性召回器
+        # 4. 初始化 Phase 5/6 殘差語意召回引擎 (Residual Semantic Recovery Engine)
         self.enable_fn_recovery = enable_fn_recovery
         self.grounder: BaseConceptGrounder = get_concept_grounder(
             provider=grounder_provider,
             skill_id_index=skill_index,
             term_to_entries=term_to_entries,
+        )
+        from src.recovery.semantic_recovery import ResidualSemanticRecoveryEngine
+        from src.verifier.semantic_verifier import SemanticVerifier
+        self.semantic_verifier = SemanticVerifier(skill_id_index=skill_index)
+        self.residual_engine = ResidualSemanticRecoveryEngine(
+            skill_id_index=skill_index,
+            verifier=self.semantic_verifier,
+            bypass_verification=bypass_verification,
+            disable_retrieval=disable_retrieval,
         )
 
         self.cat9_mapping = load_cat9_mapping(rules_path)
@@ -87,12 +98,12 @@ class HybridJobSkillPipeline:
         job_desc: str,
         tools: str = "",
         job_skills: str = "",
-    ) -> Tuple[List[CandidateSkill], JobRoutingResult, List[VerificationResult], Optional[FNRecoveryResult]]:
-        """處理單篇職缺，回傳 (最終保留技能, 分流決策結果, LLM驗證紀錄, FN召回紀錄)。"""
+    ) -> Tuple[List[CandidateSkill], JobRoutingResult, List[VerificationResult]]:
+        """處理單篇職缺，回傳 (最終保留技能, 分流決策結果, LLM驗證紀錄)。"""
         texts = [clean_text(job_desc), clean_text(job_skills), clean_text(tools)]
         clean_title = clean_text(job_title)
 
-        # 步驟 1: AC 高召回匹配
+        # 步驟 1 (Stage A): AC 高召回匹配
         candidates = self.matcher.extract_job_skills(texts, job_title=clean_title)
 
         # 步驟 2: 三軌分流
@@ -105,7 +116,7 @@ class HybridJobSkillPipeline:
             job_skills=texts[1],
         )
 
-        # 步驟 3: 第二軌 LLM 驗證 (僅對高風險候選詞呼叫)
+        # 步驟 3 (Stage B): 第二軌上下文驗證 (僅對高風險或語意衝突候選詞呼叫)
         verification_records: List[VerificationResult] = []
         rejected_ids = set()
 
@@ -120,49 +131,78 @@ class HybridJobSkillPipeline:
                 if v_res.llm_verdict == LLMVerdict.REJECT:
                     rejected_ids.add(v_res.skill_id)
 
-        # 步驟 4: 合併最終技能清單 (第一軌直通放行 + 第二軌驗證通過)
-        final_skills: List[CandidateSkill] = []
-
-        # 第一軌直接加入
-        final_skills.extend(routing_res.pass_through_candidates)
-
-        # 第二軌過濾排除項後加入
+        # 步驟 4: 合併 AC 驗證後技能 (verified_ac_skills)
+        verified_ac_skills: List[CandidateSkill] = []
+        for cand in routing_res.pass_through_candidates:
+            verified_ac_skills.append(cand)
         for cand in routing_res.verify_candidates:
             if cand.skill_id not in rejected_ids:
-                final_skills.append(cand)
+                verified_ac_skills.append(cand)
 
-        # 步驟 5 (Phase 5): 第三軌兩階段概念接地與假陰性召回 (Track 3: FN Recovery)
+        # 步驟 5 (Stage C-E): 殘差語意技能召回 (Residual Semantic Recovery)
+        # 關鍵重構：不再只對 skill_count == 0 執行，而是對所有未被完全覆蓋之職缺執行殘差單元分析
+        recovered_skills: List[CandidateSkill] = []
         fn_recovery_res: Optional[FNRecoveryResult] = None
-        if self.enable_fn_recovery and (routing_res.needs_fn_recovery or len(final_skills) == 0):
-            fn_recovery_res = self.grounder.recover_job_skills(
+
+        if self.enable_fn_recovery:
+            # 執行 Stage C-E 殘差召回
+            res_result = self.residual_engine.recover_residuals(
                 job_id=job_id,
                 job_title=clean_title,
                 job_desc=texts[0],
+                ac_matches=verified_ac_skills,
                 tools=texts[2],
                 job_skills=texts[1],
-                existing_candidate_texts=[c.matched_keyword for c in candidates],
             )
+            recovered_skills = res_result.recovered_skills
+
+            if not self.residual_engine.disable_retrieval:
+                # 兼容既有 fn_recovery_res 格式以支援審核總表
+                fn_recovery_res = self.grounder.recover_job_skills(
+                    job_id=job_id,
+                    job_title=clean_title,
+                    job_desc=texts[0],
+                    tools=texts[2],
+                    job_skills=texts[1],
+                    existing_candidate_texts=[c.matched_keyword for c in candidates],
+                )
+                # 確保殘差召回的技能同步加入
+                for r_cand in recovered_skills:
+                    if r_cand.skill_id not in fn_recovery_res.recovered_skill_ids:
+                        fn_recovery_res.recovered_skill_ids.append(r_cand.skill_id)
+
+        # 步驟 6: 最終聚合技能 (Final Hybrid Skills = Verified AC + Recovered)
+        final_skills: List[CandidateSkill] = list(verified_ac_skills)
+        existing_ids = set(s.skill_id for s in final_skills)
+
+        # 加入殘差引擎召回技能
+        for r_cand in recovered_skills:
+            if r_cand.skill_id not in existing_ids:
+                final_skills.append(r_cand)
+                existing_ids.add(r_cand.skill_id)
+
+        # 同步加入概念接地器召回技能 (包含 Mock / Domain 映射技能)
+        if fn_recovery_res and fn_recovery_res.recovered_skill_ids:
             for s_id in fn_recovery_res.recovered_skill_ids:
-                if s_id in self.matcher.skill_index:
+                if s_id in self.matcher.skill_index and s_id not in existing_ids:
                     s_dict = self.matcher.skill_index[s_id]
-                    # 避免重複加入已存在的 skill_id
-                    if any(c.skill_id == s_id for c in final_skills):
-                        continue
-                    recovered_cand = CandidateSkill(
-                        skill_id=s_dict["SKILL_ID"],
-                        skill_name=s_dict["SKILL_NAME"],
-                        skill_name_zh=s_dict["SKILL_NAME_ZH"],
-                        skill_type=s_dict["SKILL_TYPE"],
-                        skill_cat9=s_dict["SKILL_CAT9"],
-                        category_code=s_dict["SKILL_CATEGORY"],
-                        category_name=s_dict["SKILL_CATEGORY_NAME"],
-                        subcategory_code=s_dict["SKILL_SUBCATEGORY"],
-                        subcategory_name=s_dict["SKILL_SUBCATEGORY_NAME"],
-                        is_software=s_dict["IS_SOFTWARE"],
-                        matched_keyword=f"[FN:{s_dict['SKILL_NAME_ZH']}]",
-                        field_source="FN_RECOVERY",
+                    final_skills.append(
+                        CandidateSkill(
+                            skill_id=s_dict["SKILL_ID"],
+                            skill_name=s_dict["SKILL_NAME"],
+                            skill_name_zh=s_dict["SKILL_NAME_ZH"],
+                            skill_type=s_dict.get("SKILL_TYPE", "Hard Skill"),
+                            skill_cat9=s_dict.get("SKILL_CAT9", "Unclassified"),
+                            category_code=s_dict.get("SKILL_CATEGORY", "0"),
+                            category_name=s_dict.get("SKILL_CATEGORY_NAME", ""),
+                            subcategory_code=s_dict.get("SKILL_SUBCATEGORY", "0"),
+                            subcategory_name=s_dict.get("SKILL_SUBCATEGORY_NAME", ""),
+                            is_software=s_dict.get("IS_SOFTWARE", False),
+                            matched_keyword=f"[FN:{s_dict['SKILL_NAME_ZH']}]",
+                            field_source="FN_RECOVERY",
+                        )
                     )
-                    final_skills.append(recovered_cand)
+                    existing_ids.add(s_id)
 
         routing_res.fn_recovery_result = fn_recovery_res
         return final_skills, routing_res, verification_records

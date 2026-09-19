@@ -34,10 +34,11 @@ class CandidateSkill(BaseModel):
     field_source: str = Field(default="職位描述", description="命中來源欄位 (職位描述 / 工作技能 / 工具欄 / 職稱消歧 / 就近文意)")
     start_pos: Optional[int] = Field(default=None, description="命中關鍵字之起始字元索引")
     end_pos: Optional[int] = Field(default=None, description="命中關鍵字之結束字元索引")
+    original_text: Optional[str] = Field(default=None, description="命中之完整原文或句子")
 
     def to_dict(self) -> Dict[str, Any]:
         """轉為與原系統相容的字典格式。"""
-        return {
+        d = {
             "SKILL_ID": self.skill_id,
             "SKILL_NAME": self.skill_name,
             "SKILL_NAME_ZH": self.skill_name_zh,
@@ -51,3 +52,10 @@ class CandidateSkill(BaseModel):
             "MATCHED_KEYWORD": self.matched_keyword,
             "MATCHED_FROM": self.field_source,
         }
+        if self.start_pos is not None:
+            d["START_POS"] = self.start_pos
+        if self.end_pos is not None:
+            d["END_POS"] = self.end_pos
+        if self.original_text is not None:
+            d["ORIGINAL_TEXT"] = self.original_text
+        return d
