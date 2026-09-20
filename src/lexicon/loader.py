@@ -70,7 +70,10 @@ class LexiconLoader:
                 is_software=(cat_code in self.software_categories),
             )
             skill_dict = skill_entry.model_dump()
-            # 轉換 key 名稱為大寫以相容舊版 pipeline 慣例
+            kw_str = str(row.get("Keywords", "")).strip()
+            if kw_str.lower() == "nan":
+                kw_str = ""
+
             compat_skill_dict = {
                 "SKILL_ID": skill_entry.skill_id,
                 "SKILL_NAME": skill_entry.skill_name,
@@ -82,14 +85,20 @@ class LexiconLoader:
                 "SKILL_SUBCATEGORY": skill_entry.subcategory_code,
                 "SKILL_SUBCATEGORY_NAME": skill_entry.subcategory_name,
                 "IS_SOFTWARE": skill_entry.is_software,
+                "KEYWORDS": kw_str,
             }
             skill_id_index[skill_entry.skill_id] = compat_skill_dict
 
+            # 中文詞條存進自動機/jieba前一併轉小寫：比對階段（ac_matcher/engine.py）
+            # 全文一律先 text_lower = raw_text.lower() 才拿去比對，中文字本身沒有大小寫、
+            # .lower() 對純中文是no-op，但像「X光」「.NET」這種中英混合關鍵字，原本用原始
+            # 大小寫存進自動機的話，比對小寫化後的文字永遠對不上。
             terms: List[Tuple[str, bool]] = []
             zh = str(row.get("Skill_Name_ZH", "")).strip()
             if has_chinese(zh) and (len(zh) >= 3 or zh in self.zh_allowlist):
-                terms.append((zh, True))
-                jieba.add_word(zh, freq=1000)
+                zh_lower = zh.lower()
+                terms.append((zh_lower, True))
+                jieba.add_word(zh_lower, freq=1000)
                 jcount += 1
             elif not has_chinese(zh):
                 if len(zh) >= 2:
@@ -105,8 +114,9 @@ class LexiconLoader:
                     if has_chinese(kw):
                         if len(kw) < 2 or (len(kw) == 2 and kw not in self.zh_allowlist):
                             continue
-                        terms.append((kw, True))
-                        jieba.add_word(kw, freq=1000)
+                        kw_lower = kw.lower()
+                        terms.append((kw_lower, True))
+                        jieba.add_word(kw_lower, freq=1000)
                         jcount += 1
                     else:
                         if len(kw) >= 2:
