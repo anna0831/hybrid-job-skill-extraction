@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Callable
 import pandas as pd
 
 from src.lexicon.loader import LexiconLoader
@@ -18,6 +18,7 @@ from src.grounding.providers import get_concept_grounder, BaseConceptGrounder
 from src.grounding.schemas import FNRecoveryResult
 from src.preprocessing.normalizer import clean_text, extract_county, extract_month
 from src.outputs.formatter import skills_to_wide, load_cat9_mapping
+from src.utils.progress import ProgressTracker, ProgressSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -277,7 +278,11 @@ class HybridJobSkillPipeline:
         )
 
     def process_dataframe(
-        self, df: pd.DataFrame, county: str = "unknown", month: str = "unknown"
+        self,
+        df: pd.DataFrame,
+        county: str = "unknown",
+        month: str = "unknown",
+        progress_callback: Optional[Callable[[ProgressSnapshot], None]] = None,
     ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
         """批次處理 DataFrame，回傳 (long_df, wide_df, global_stats)。"""
         def find_col(candidates, default=""):
@@ -294,8 +299,17 @@ class HybridJobSkillPipeline:
 
         records = []
         fn_results: List[FNRecoveryResult] = []
+        total_jobs = len(df)
+
+        tracker = ProgressTracker()
+        tracker.start(total=total_jobs, initial_stage=ProgressTracker.STAGE_AC_MATCHING)
+        if progress_callback:
+            init_snap = tracker.update(0, stage=ProgressTracker.STAGE_AC_MATCHING, force=True)
+            if init_snap:
+                progress_callback(init_snap)
 
         for i, row in df.iterrows():
+            t_job_start = time.time()
             job_id = str(row.get(id_col, f"JOB_{i}"))
             title = str(row.get(title_col, ""))
             desc = str(row.get(desc_col, ""))
@@ -321,6 +335,32 @@ class HybridJobSkillPipeline:
                     **cand.to_dict(),
                 })
 
+            job_latency = time.time() - t_job_start
+            current_stage = (
+                ProgressTracker.STAGE_RESIDUAL_RECOVERY
+                if (self.enable_fn_recovery and routing_res.needs_fn_recovery)
+                else ProgressTracker.STAGE_AC_MATCHING
+            )
+
+            if progress_callback:
+                snap = tracker.update(
+                    processed=i + 1,
+                    stage=current_stage,
+                    job_latency_sec=job_latency,
+                )
+                if snap:
+                    progress_callback(snap)
+
+        # 彙整與寬表格聚合階段
+        if progress_callback:
+            agg_snap = tracker.update(
+                processed=total_jobs,
+                stage=ProgressTracker.STAGE_AGGREGATING,
+                force=True,
+            )
+            if agg_snap:
+                progress_callback(agg_snap)
+
         # 自動產出/更新審核表與候選關鍵字
         if fn_results:
             try:
@@ -331,4 +371,9 @@ class HybridJobSkillPipeline:
         long_df = pd.DataFrame(records)
         wide_df = skills_to_wide(long_df, df, cat9_mapping=self.cat9_mapping)
         stats = self.router.get_global_stats()
+
+        if progress_callback:
+            final_snap = tracker.finish()
+            progress_callback(final_snap)
+
         return long_df, wide_df, stats

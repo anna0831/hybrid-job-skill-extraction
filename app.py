@@ -17,6 +17,7 @@ from src.routing.schemas import RouteTrack
 from src.llm_verifier.schemas import LLMVerdict
 from src.outputs.formatter import skills_to_wide, load_cat9_mapping
 from src.preprocessing.normalizer import clean_text
+from src.utils.progress import ProgressSnapshot, format_time
 
 # 設定網頁標題與寬版版面
 st.set_page_config(
@@ -251,7 +252,22 @@ def main():
             month_input = st.text_input("預設月份 (若檔名未包含)", value="2026-09")
 
         if uploaded_file is not None:
-            # 強健讀取各類編碼與格式 (自動處理台灣 104 常見之 CP950 / Big5 / UTF-8)
+            # 1. 檔案基本資訊與容量格式化
+            file_size_bytes = uploaded_file.size
+            if file_size_bytes < 1024 * 1024:
+                file_size_str = f"{file_size_bytes / 1024:.1f} KB"
+            else:
+                file_size_str = f"{file_size_bytes / (1024 * 1024):.1f} MB"
+
+            # 2. 伺服器端真實讀取與階段追蹤
+            file_status_box = st.empty()
+            with file_status_box.container():
+                st.info(
+                    f"📁 **檔案資訊**：`{uploaded_file.name}` ({file_size_str})  \n"
+                    f"⏳ **目前階段**：正在讀取與解析檔案內容..."
+                )
+
+            t_read_start = time.time()
             df_raw = None
             try:
                 name_lower = uploaded_file.name.lower()
@@ -274,32 +290,71 @@ def main():
                     uploaded_file.seek(0)
                     df_raw = pd.read_excel(uploaded_file, engine="openpyxl")
             except Exception as read_err:
-                st.error(f"❌ 檔案讀取失敗：{str(read_err)}。請確認檔案是否損毀或格式不符。")
+                file_status_box.error(f"❌ 檔案讀取失敗：{str(read_err)}。請確認檔案是否損毀或格式不符。")
 
             if df_raw is not None:
-                st.success(f"✅ 成功讀取檔案 **{uploaded_file.name}**！共 **{len(df_raw)}** 筆職缺資料。")
+                read_duration = time.time() - t_read_start
 
-                # 醒目的執行按鈕，置於最上方
+                # 3. 欄位驗證與準備
+                id_candidates = ["工作編號", "ID", "id"]
+                title_candidates = ["職位名稱", "104職位名稱", "job_title"]
+                desc_candidates = ["職位描述", "job_desc"]
+
+                has_title = any(c in df_raw.columns for c in title_candidates)
+                has_desc = any(c in df_raw.columns for c in desc_candidates)
+
+                if not has_title and not has_desc:
+                    file_status_box.warning(
+                        f"⚠️ 檔案解析完成 (耗時 {read_duration:.2f} 秒，共 {len(df_raw):,} 筆)，"
+                        f"但未偵測到標準職稱或描述欄位，可能會影響擷取準確度。"
+                    )
+                else:
+                    file_status_box.success(
+                        f"📁 **檔案處理**：✅ 完成  \n"
+                        f"**檔案**：`{uploaded_file.name}` ({file_size_str}) ｜ **共 {len(df_raw):,} 筆職缺** ｜ "
+                        f"**讀取耗時**：{read_duration:.2f} 秒 ｜ **欄位驗證**：通過"
+                    )
+
+                # 4. 醒目的執行按鈕
                 btn_col1, btn_col2 = st.columns([1, 2])
                 with btn_col1:
                     run_batch = st.button("🚀 執行批次技能擷取", type="primary", use_container_width=True)
 
                 if run_batch:
+                    st.markdown("### ⚙️ 技能擷取進度")
                     progress_bar = st.progress(0)
+                    metrics_box = st.empty()
                     status_text = st.empty()
 
-                    t_start_batch = time.time()
-                    with st.spinner("正在進行多模式比對、風險分流與 9 大類寬表格聚合..."):
-                        long_df, wide_df, stats = pipeline.process_dataframe(
-                            df_raw, county=county_input, month=month_input
-                        )
-                        progress_bar.progress(100)
+                    # 即時進度回呼函數 (受節流保護，絕不造成 UI 凍結)
+                    def on_batch_progress(snapshot: ProgressSnapshot):
+                        progress_bar.progress(int(snapshot.percent))
+                        with metrics_box.container():
+                            m1, m2, m3, m4 = st.columns(4)
+                            m1.metric("已處理進度", f"{snapshot.processed:,} / {snapshot.total:,}", f"{snapshot.percent}%")
+                            m2.metric("目前階段", snapshot.stage)
+                            m3.metric("處理速度", snapshot.formatted_speed)
+                            m4.metric("預計剩餘 (ETA)", snapshot.formatted_eta, f"已耗時 {snapshot.formatted_elapsed}")
 
-                    batch_duration = time.time() - t_start_batch
-                    status_text.success(
-                        f"🎉 批次處理完成！耗時 {batch_duration:.2f} 秒 (平均 {batch_duration/max(len(df_raw), 1)*1000:.2f} ms/doc)"
-                    )
-                    st.session_state[f"wide_df_{uploaded_file.name}"] = wide_df
+                    t_start_batch = time.time()
+                    try:
+                        long_df, wide_df, stats = pipeline.process_dataframe(
+                            df_raw,
+                            county=county_input,
+                            month=month_input,
+                            progress_callback=on_batch_progress,
+                        )
+                        batch_duration = time.time() - t_start_batch
+                        progress_bar.progress(100)
+                        status_text.success(
+                            f"🎉 批次處理完成！共處理 {len(df_raw):,} 筆職缺，總耗時 {batch_duration:.2f} 秒 "
+                            f"(平均 {batch_duration / max(len(df_raw), 1) * 1000:.2f} ms/doc)。"
+                        )
+                        st.session_state[f"wide_df_{uploaded_file.name}"] = wide_df
+                    except Exception as batch_err:
+                        progress_bar.progress(0)
+                        status_text.error(f"❌ 技能擷取失敗（階段: 批次處理中發生未預期錯誤）：{batch_err}")
+                        st.exception(batch_err)
 
                 # 若已有處理結果，持久顯示下載按鈕與預覽
                 cached_wide_df = st.session_state.get(f"wide_df_{uploaded_file.name}")
