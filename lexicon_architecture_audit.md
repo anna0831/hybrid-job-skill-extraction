@@ -8,16 +8,19 @@
 
 ## 一、目前的 Source of Truth 與程式讀取現況 (Section A)
 
-經檢視程式碼 [104_single_file_20260930.py](file:///Users/anna/Desktop/Job_Description_fetch/104_single_file_20260930.py) 與儲存庫目錄結構，現況如下：
+經檢視程式碼 [104_single_file_20260930.py](104_single_file_20260930.py) 與儲存庫目錄結構，現況如下：
 
 ### 1. 程式預設讀取路徑
-在 `104_single_file_20260930.py` 第 98–99 行中，程式宣告之預設常數為：
+在 `104_single_file_20260930.py` 第 98–101 行中，程式宣告之預設常數為：
 ```python
-LEXICON_PATH = os.path.join(BASE_DIR, "詞庫skill_lexicon_v13_20260918.xlsx")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 優先採用根目錄最新 0930 詞庫，若不存在則相容退回 outputs/temp/0918 詞庫
+_DEFAULT_LEX = "詞庫skill_lexicon_v13_20260930.xlsx" if os.path.exists(os.path.join(BASE_DIR, "詞庫skill_lexicon_v13_20260930.xlsx")) else "outputs/temp/詞庫skill_lexicon_v13_20260918.xlsx"
+LEXICON_PATH = os.path.join(BASE_DIR, _DEFAULT_LEX)
 GROUPED_LEXICON_PATH = os.path.join(BASE_DIR, "詞庫skill_lexicon_v13_Chen_grouped_09_2026.xlsx")
 ```
-- **基底詞庫現狀**：根目錄下的 `詞庫skill_lexicon_v13_20260918.xlsx` 先前已移至 `outputs/temp/` 備份；根目錄目前存在的最新詞庫為 `詞庫skill_lexicon_v13_20260930.xlsx`。
-- **執行狀態**：若直接以預設參數執行程式，會因根目錄無 0918 檔案而拋出 `FileNotFoundError`。
+- **基底詞庫現狀**：程式預設優先使用 0930（根目錄最新版 `詞庫skill_lexicon_v13_20260930.xlsx`）；若該檔不存在，則自動相容 fallback 至 `outputs/temp/詞庫skill_lexicon_v13_20260918.xlsx`。
+- **執行狀態**：具備自動檢測與相容退回機制，直接執行不會發生 `FileNotFoundError`。
 
 ### 2. 詞庫在 Pipeline 各階段的使用
 | 檔案名稱 | 實質功能與用途 | 關鍵使用欄位 | 使用階段 |
@@ -133,10 +136,7 @@ GROUPED_LEXICON_PATH = os.path.join(BASE_DIR, "詞庫skill_lexicon_v13_Chen_grou
 
 ## 五、Python 程式修改評估
 
-> 依研究審查流程，本階段僅擬定修改計畫，待確認後實施。
-
-1. **預定修改位置**：[104_single_file_20260930.py](file:///Users/anna/Desktop/Job_Description_fetch/104_single_file_20260930.py) 第 98 行：
-   - 將預設基底詞庫路徑更新為 `詞庫skill_lexicon_v13_20260930.xlsx`。
+1. **實作狀態**：[104_single_file_20260930.py](104_single_file_20260930.py) 第 98–100 行已完成設定：優先使用 0930（根目錄最新版 `詞庫skill_lexicon_v13_20260930.xlsx`），若不存在則相容 fallback 至 `outputs/temp/詞庫skill_lexicon_v13_20260918.xlsx`。
 2. **架構維持**：維持雙軌架構，保留 `詞庫skill_lexicon_v13_Chen_grouped_09_2026.xlsx` 作為十大分類 metadata 來源。
 3. **演算法保持**：不更動 AC matching 演算法、`seen_zh_terms`、消歧規則或既有分類邏輯。
 4. **輸出規格保持**：維持 25 個固定欄位與既有排序。

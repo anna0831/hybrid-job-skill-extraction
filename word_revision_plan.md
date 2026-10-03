@@ -115,10 +115,10 @@
 ## 四、第二階段執行順序（Code → Test → Verify → Document）
 
 依研究審查工作流程，後續實施步驟嚴格遵守：
-1. **Step A**：修改 Python 程式 [104_single_file_20260930.py](file:///Users/anna/Desktop/Job_Description_fetch/104_single_file_20260930.py) 預設 base lexicon 為 `詞庫skill_lexicon_v13_20260930.xlsx`。
+1. **Step A**：修改 Python 程式 [104_single_file_20260930.py](104_single_file_20260930.py) 預設 base lexicon 為 `詞庫skill_lexicon_v13_20260930.xlsx`（若不存在則相容 fallback 至 `outputs/temp/0918`）。
 2. **Step B**：維持 `詞庫skill_lexicon_v13_Chen_grouped_09_2026.xlsx` 作為十大分類 metadata 來源。
 3. **Step C**：不修改 AC matching algorithm、`seen_zh_terms`、消歧規則或分類規則。
-4. **Step D**：執行驗證腳本 [scripts/verify_single_file_upgrade.py](file:///Users/anna/Desktop/Job_Description_fetch/scripts/verify_single_file_upgrade.py) 確認各項測試。
+4. **Step D**：執行驗證腳本 [scripts/verify_single_file_upgrade.py](scripts/verify_single_file_upgrade.py) 確認各項測試。
 5. **Step E**：使用修改後實際程式執行 500 筆 demo 資料，產出實測數據與檔案。
 6. **Step F**：依據實測結果，執行文件建置腳本產出全新 `104技能擷取程式_修改邏輯與會議審查_0930詞庫更新版.docx`。
 7. **Step G**：自主迭代檢驗（Self-Review），確認字體、版面與措辭皆符合學術規範。

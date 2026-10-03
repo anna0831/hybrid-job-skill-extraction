@@ -9,11 +9,13 @@ import traceback
 # 0. Settings
 # ============================================================
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # 輸入資料夾:放置多個縣市的 wide.xlsx 檔案
-INPUT_FOLDER = "/Users/anna/Desktop/Job_Description_fetch/AC 後檔案"
+INPUT_FOLDER = os.path.join(BASE_DIR, "AC 後檔案")
 
 # 輸出資料夾:抽樣結果會依序輸出到這裡
-OUTPUT_FOLDER = "/Users/anna/Library/CloudStorage/OneDrive-個人/ChenRA/AI_Job_project/許雁婷"
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
 
 # 輸入檔案篩選規則(可依實際檔名調整,例如只抓 skills_ 開頭的檔案)
 INPUT_PATTERN = "skills_*.xlsx"

@@ -9,7 +9,7 @@ import time
 import pandas as pd
 import openpyxl
 
-REPO_ROOT = "/Users/anna/Desktop/Job_Description_fetch"
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 

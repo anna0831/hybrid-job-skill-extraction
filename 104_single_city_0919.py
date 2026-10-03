@@ -48,9 +48,11 @@ jieba.setLogLevel(60)
 # ============================================================
 # 【使用者設定區】
 # ============================================================
-INPUT_PATH   = "/Users/anna/Desktop/Job_Description_fetch/dataset/cleaned_臺中市_202608.xlsx"
-LEXICON_PATH = "/Users/anna/Downloads/詞庫skill_lexicon_v13_20260918.xlsx"
-OUTPUT_DIR   = "/Users/anna/Desktop"
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+INPUT_PATH   = os.path.join(BASE_DIR, "dataset", "cleaned_臺中市_202608.xlsx")
+_DEFAULT_LEX = "詞庫skill_lexicon_v13_20260918.xlsx" if os.path.exists(os.path.join(BASE_DIR, "詞庫skill_lexicon_v13_20260918.xlsx")) else os.path.join("outputs", "temp", "詞庫skill_lexicon_v13_20260918.xlsx")
+LEXICON_PATH = os.path.join(BASE_DIR, _DEFAULT_LEX)
+OUTPUT_DIR   = os.path.join(BASE_DIR, "AC 後檔案")
 # ============================================================
 
 # 台灣製造/品質領域重要 2 字詞，jieba 預設不認識會拆開，需強制加入
