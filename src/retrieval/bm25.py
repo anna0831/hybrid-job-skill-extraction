@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def tokenize_text(text: str) -> List[str]:
-    """中英文雙語斷詞函數：混合 Jieba 斷詞與英文/數字/縮寫 Token 化。"""
+    """中英文雙語斷詞函數：混合 Jieba 斷詞、2-Gram 複合詞拆解與英文/數字/縮寫 Token 化。"""
     if not text:
         return []
     text_clean = text.lower().strip()
@@ -23,7 +23,15 @@ def tokenize_text(text: str) -> List[str]:
     en_tokens = re.findall(r"[a-z0-9\+\#\.\-]+", text_clean)
     
     # 中文文字部分使用 jieba 斷詞
-    zh_tokens = [w for w in jieba.cut(text_clean) if len(w.strip()) > 0 and not re.match(r"^[a-z0-9\+\#\.\-]+$", w)]
+    zh_tokens = []
+    for w in jieba.cut(text_clean):
+        w_clean = w.strip()
+        if len(w_clean) > 0 and not re.match(r"^[a-z0-9\+\#\.\-]+$", w_clean):
+            zh_tokens.append(w_clean)
+            if len(w_clean) >= 4:
+                # 複合中文名詞加入 2-gram 子詞 (例如 品質管理 -> 品質, 管理)
+                zh_tokens.append(w_clean[:2])
+                zh_tokens.append(w_clean[-2:])
     
     return en_tokens + zh_tokens
 
@@ -54,28 +62,30 @@ class BM25Retriever:
         self.df: Dict[str, int] = {}
         self.idf: Dict[str, float] = {}
         self.doc_term_freqs: List[Dict[str, int]] = []
+        self.vocab_words: List[str] = []
         
         self._build_index()
 
     def _build_index(self):
-        """將詞庫中每個 Skill_ID 轉換為可檢索文檔並建立倒排索引。"""
+        """將詞庫中每個 Skill_ID 轉換為標準規範化文檔並建立倒排索引。"""
         self.skill_ids = list(self.skill_id_index.keys())
         total_len = 0
 
         for skill_id in self.skill_ids:
             info = self.skill_id_index[skill_id]
-            name_zh = info.get("SKILL_NAME_ZH", "") or ""
-            name_en = info.get("SKILL_NAME", "") or ""
-            keywords = info.get("KEYWORDS", "") or ""
+            name_zh = (info.get("SKILL_NAME_ZH", "") or "").strip()
+            name_en = (info.get("SKILL_NAME", "") or "").strip()
+            keywords = (info.get("KEYWORDS", "") or "").strip()
             if isinstance(keywords, str):
-                keywords_clean = keywords.replace("｜", " ")
+                keywords_clean = " ".join(k.strip() for k in keywords.replace("｜", " ").split() if k.strip())
             else:
                 keywords_clean = ""
-            cat_name = info.get("SKILL_CATEGORY_NAME", "") or ""
-            subcat_name = info.get("SKILL_SUBCATEGORY_NAME", "") or ""
+            cat_name = (info.get("SKILL_CATEGORY_NAME", "") or "").strip()
+            subcat_name = (info.get("SKILL_SUBCATEGORY_NAME", "") or "").strip()
+            cat_full = f"{cat_name} {subcat_name}".strip()
 
-            # 組裝富語意文檔 (加權：名稱與關鍵字重複出現以增加權重)
-            doc_str = f"{name_zh} {name_zh} {name_en} {name_en} {keywords_clean} {cat_name} {subcat_name}"
+            # 規範化檢索文檔表示 (Canonical Document Representation)
+            doc_str = f"{name_en} | {name_zh} | {keywords_clean} | {cat_full}"
             tokens = tokenize_text(doc_str)
             self.corpus.append(tokens)
             doc_len = len(tokens)
@@ -99,6 +109,17 @@ class BM25Retriever:
         for term, freq in self.df.items():
             self.idf[term] = math.log(((n_docs - freq + 0.5) / (freq + 0.5)) + 1.0)
 
+        # 收集技術英文詞庫供通用錯字校正
+        self.vocab_words = [w for w in self.df.keys() if re.match(r"^[a-z]{3,}$", w)]
+
+        # 倒排索引：token -> List[Tuple[doc_idx, tf]]
+        self.inverted_index: Dict[str, List[Tuple[int, int]]] = {}
+        for doc_idx, tf_dict in enumerate(self.doc_term_freqs):
+            for term, tf in tf_dict.items():
+                if term not in self.inverted_index:
+                    self.inverted_index[term] = []
+                self.inverted_index[term].append((doc_idx, tf))
+
         logger.info(f"BM25 索引建立完成：共索引 {n_docs} 筆詞庫項目，詞表大小 {len(self.df)}。")
 
     def retrieve(self, query: str, top_k: int = 5) -> List[Tuple[str, float]]:
@@ -111,36 +132,54 @@ class BM25Retriever:
         Returns:
             [(skill_id, normalized_score), ...] 依照分數由高至低排序
         """
+        import difflib
         query_tokens = tokenize_text(query)
         if not query_tokens or not self.skill_ids:
             return []
 
-        scores: List[float] = [0.0] * len(self.skill_ids)
-
+        # 英文專業詞彙輕量錯字校正 (General Typo Correction)
+        expanded_tokens = list(query_tokens)
         for q in query_tokens:
+            if re.match(r"^[a-z]{4,}$", q) and q not in self.idf:
+                close_matches = difflib.get_close_matches(q, self.vocab_words, n=1, cutoff=0.82)
+                if close_matches and abs(len(q) - len(close_matches[0])) <= 2 and close_matches[0] not in expanded_tokens:
+                    expanded_tokens.append(close_matches[0])
+
+        scores: Dict[int, float] = {}
+
+        for q in expanded_tokens:
             if q not in self.idf:
                 continue
             idf_val = self.idf[q]
+            postings = self.inverted_index.get(q)
+            if not postings:
+                continue
 
-            for i, tf_dict in enumerate(self.doc_term_freqs):
-                tf = tf_dict.get(q, 0)
-                if tf == 0:
-                    continue
-                d_len = self.doc_lengths[i]
+            for doc_idx, tf in postings:
+                d_len = self.doc_lengths[doc_idx]
                 numerator = tf * (self.k1 + 1.0)
                 denominator = tf + self.k1 * (1.0 - self.b + self.b * (d_len / self.avgdl))
-                scores[i] += idf_val * (numerator / denominator)
+                score_delta = idf_val * (numerator / denominator)
+                scores[doc_idx] = scores.get(doc_idx, 0.0) + score_delta
 
-        # 排序並取 Top-K
-        ranked_indices = sorted(range(len(scores)), key=lambda idx: scores[idx], reverse=True)
+        if not scores:
+            return []
+
+        # 排序候選文檔：依分數降序，同分依原始 doc_idx 升序（確保與原本穩定排序 100% 一致）
+        ranked_candidates = sorted(scores.keys(), key=lambda idx: (-scores[idx], idx))
+        max_score = scores[ranked_candidates[0]] if scores[ranked_candidates[0]] > 0 else 1.0
+        n_query = len(query_tokens)
+
         results: List[Tuple[str, float]] = []
-
-        max_score = scores[ranked_indices[0]] if ranked_indices and scores[ranked_indices[0]] > 0 else 1.0
-        for idx in ranked_indices[:top_k]:
+        for idx in ranked_candidates[:top_k]:
             raw_score = scores[idx]
             if raw_score <= 0.0:
                 continue
-            norm_score = min(1.0, raw_score / max_score)
+            tf_dict = self.doc_term_freqs[idx]
+            matched_q = sum(1 for q in query_tokens if tf_dict.get(q, 0) > 0)
+            coverage = (matched_q / n_query) if n_query > 0 else 1.0
+            # 依查詢詞覆蓋率適度衰減，避免僅單一通用詞命中卻得到 1.0 過高置信度
+            norm_score = min(1.0, (raw_score / max_score) * (0.5 + 0.5 * coverage))
             results.append((self.skill_ids[idx], round(norm_score, 4)))
 
         return results

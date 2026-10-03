@@ -10,7 +10,8 @@ import os
 sys.path.insert(0, os.path.abspath("."))
 import importlib.util
 
-spec = importlib.util.spec_from_file_location("legacy_script", "104_single_file_20260909.py")
+target_script = "104_single_file_20260930.py" if os.path.exists("104_single_file_20260930.py") else "104_single_file_20260909.py"
+spec = importlib.util.spec_from_file_location("legacy_script", target_script)
 legacy = importlib.util.module_from_spec(spec)
 # Don't run main() on import
 spec.loader.exec_module(legacy)

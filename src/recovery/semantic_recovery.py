@@ -63,6 +63,7 @@ class ResidualSemanticRecoveryEngine:
         ac_matches: List[CandidateSkill],
         tools: str = "",
         job_skills: str = "",
+        excluded_skill_ids: Optional[Any] = None,
     ) -> ResidualRecoveryResult:
         """對單篇職缺執行完整的殘差語意召回流程。"""
         # 1. 偵測未被 AC 涵蓋的殘差語意單元 (Stage C)
@@ -86,6 +87,8 @@ class ResidualSemanticRecoveryEngine:
         verification_outputs: List[SemanticVerificationOutput] = []
         recovered_skills: List[CandidateSkill] = []
         seen_skill_ids = set(c.skill_id for c in ac_matches)
+        if excluded_skill_ids:
+            seen_skill_ids.update(excluded_skill_ids)
 
         for unit in residual_units:
             phrase = unit.phrase
@@ -153,8 +156,8 @@ class ResidualSemanticRecoveryEngine:
                         subcategory_code=s_dict.get("SKILL_SUBCATEGORY", "0"),
                         subcategory_name=s_dict.get("SKILL_SUBCATEGORY_NAME", ""),
                         is_software=s_dict.get("IS_SOFTWARE", False),
-                        matched_keyword=f"[RESIDUAL:{phrase}]",
-                        field_source="RESIDUAL_RECOVERY",
+                        matched_keyword=f"[FN:{s_dict['SKILL_NAME_ZH']}][RESIDUAL:{phrase}]",
+                        field_source="FN_RECOVERY",
                         original_text=unit.raw_text,
                     )
                     recovered_skills.append(recovered_cand)

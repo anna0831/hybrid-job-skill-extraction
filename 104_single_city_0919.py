@@ -48,9 +48,9 @@ jieba.setLogLevel(60)
 # ============================================================
 # 【使用者設定區】
 # ============================================================
-INPUT_PATH   = "/Users/anna/Desktop/Job_Description_fetch/dataset/cleaned_彰化縣_202608.xlsx"
-LEXICON_PATH = "/Users/anna/Desktop/Job_Description_fetch/詞庫skill_lexicon_v13_20260915.xlsx"
-OUTPUT_DIR   = "/Users/anna/Desktop/Job_Description_fetch/AC 後檔案"
+INPUT_PATH   = "/Users/anna/Desktop/Job_Description_fetch/dataset/cleaned_臺中市_202608.xlsx"
+LEXICON_PATH = "/Users/anna/Downloads/詞庫skill_lexicon_v13_20260918.xlsx"
+OUTPUT_DIR   = "/Users/anna/Desktop"
 # ============================================================
 
 # 台灣製造/品質領域重要 2 字詞，jieba 預設不認識會拆開，需強制加入
@@ -60,41 +60,17 @@ _JIEBA_2CHAR_WHITELIST = {
     "輪班", "物性", "化性", "採樣",
 }
 
-# 有意義的 2 字中文技能關鍵字白名單
-# （一般規則：中文 < 3 字會被過濾；此白名單的 2 字詞例外放行）
-_ZH_2CHAR_SKILL_ALLOWLIST = {
-    # 「業務」拿掉：常泛指「職務/工作內容」（護理業務、行政業務⋯），不是只有業務銷售的意思，
-    # 裸字留著會大量誤判；「銷售」本身跟其他複合詞（業務推廣、業務開拓⋯）已經有足夠涵蓋
-    "銷售", "行銷", "推廣", "開發",
-    "研發", "設計", "開發", "繪圖", "建模",
-    "生產", "製造", "組裝", "加工", "備料", "安裝",
-    "品管", "稽核", "檢驗", "管控",
-    "採購", "倉儲", "物流", "配送",
-    "財務", "會計", "人資", "薪資",
-    "維修", "保養", "操作", "校正",
-    "翻譯", "口譯",
-    # 餐飲外場（2026-08-18 補：職缺常用這種 2 字詞列點，很少寫成「X服務」全稱）
-    "跑單", "擺盤", "送餐", "帶位", "倒水", "點餐", "收銀", "結帳",
-    # 照顧服務／清潔衛生（2026-08-18 補：同樣是條列式短語）
-    "消毒", "更衣", "沐浴",
-    # 保全（2026-08-29 補：巡邏本身是安全詞，跟原本已核准的裸字風險相當）
-    "巡邏",
-    # 基層領班／督導（2026-09-06 補：口語化裸字，語意明確、跟其他常用詞衝突風險低）
-    "督導", "班長",
-    # 美髮（2026-09-06 補：之前補「洗髮服務」時漏了把裸字一併放行，
-    # 導致頓號展開產生的「剪髮/染髮/洗髮」實際上還是比對不到）
-    "剪髮", "染髮", "洗髮", "燙髮", "護髮",
-    # 餐飲清潔（2026-09-07 補：同義詞庫清單案例）
-    "洗碗", "打掃",
-    # 2026-09-07 全面稽核：補齊詞庫裡已經有登記、但漏放行的 2 字詞
-    "傳票", "立帳", "分錄", "良率", "沖帳",       # 舊有缺口（v13 原始 TW_ 補充項目）
-    "備菜", "打餐", "舌診", "脈診", "刷手", "煎肉", "試教",  # 這次新增技能時漏放行
-    # 「跟刀」拿掉了：業務/銷售語境的「跟催、跟進」也會用到這個字，
-    # 跟醫療上的「跟刀」（協助醫師開刀）撞在一起，改用「手術跟刀」較安全
-    # 2026-09-07 發現「清潔」這個裸字從詞庫最初就沒被放行過（一直靠「環境清潔」
-    # 這種 4 字複合詞頂著，直到職缺文字只單獨寫「清潔」才發現這個舊缺口）
-    "清潔", "洗車", "推銷",
-}
+# 2字中文裸字關鍵字要不要放行比對，2026-09-19 起改成直接讀詞庫 Excel 檔案裡的
+# Allow_Bare_2Char_Keywords 欄位（見 load_automaton() 內的 row_bare_allow），
+# 不再寫死在程式碼裡——這樣新增/修改關鍵字時，決定「這個字要不要當裸字比對」
+# 可以直接在 Excel 同一列做，不用再回來改這支程式碼、也不會有兩邊忘記同步的問題。
+#
+# 判斷原則不變：2字詞太短、太容易跟不相關領域撞在一起（例如「業務」泛指
+# 職務/工作內容、「跟刀」跟業務語境的「跟催」衝突、「病毒」跟IT防毒軟體衝突），
+# 所以預設不放行，只有明確判斷過、跟其他領域衝突風險低的才在 Excel 裡標記放行。
+# 「翻身」是刻意不放行的例子——這個字是「咸魚翻身」等常見慣用語的一部分，
+# 跟護理上「協助病人翻身」的意思衝突風險太高，即使 Keywords 欄位裡有登記，
+# Allow_Bare_2Char_Keywords 也刻意不把它列進去，維持不比對。
 
 # ============================================================
 # 同義詞字典（2026-09-07 正式落地：「方法二」）
@@ -232,6 +208,11 @@ def load_automaton(lexicon_path: str):
         except (ValueError, TypeError):
             cat_code = 0
 
+        # 2字裸字關鍵字是否放行比對，直接讀詞庫本身的 Allow_Bare_2Char_Keywords 欄位
+        # （2026-09-19 從程式碼裡的白名單搬過來，跟關鍵字放在同一列維護，不用再手動同步兩邊）
+        allow_str = str(row.get("Allow_Bare_2Char_Keywords", "")).strip()
+        row_bare_allow = set(allow_str.split("｜")) if allow_str and allow_str.lower() != "nan" else set()
+
         skill = {
             "SKILL_ID":               str(row["Skill_ID"]),
             "SKILL_NAME":             str(row["Skill_Name"]),
@@ -245,11 +226,17 @@ def load_automaton(lexicon_path: str):
             "IS_SOFTWARE":            cat_code in SOFTWARE_CATEGORIES,
         }
 
+        # 中文詞條一律轉小寫再存進自動機/jieba——因為比對職缺文字時（match_skills）
+        # 全文會先轉小寫（text_lower = raw_text.lower()）才拿去比對。中文字本身沒有
+        # 大小寫之分，.lower() 對純中文字是no-op，但像「X光」「PA X光片」這種中英混合
+        # 關鍵字，如果自動機裡存的是原始大寫「X光」，比對小寫化後的「x光」永遠對不上
+        # ——這是 2026-09-19 發現的系統性 bug（大小寫不一致），不是關鍵字內容缺口。
         terms = []
         zh = str(row.get("Skill_Name_ZH", "")).strip()
-        if has_chinese(zh) and (len(zh) >= 3 or zh in _ZH_2CHAR_SKILL_ALLOWLIST):
-            terms.append((zh, True))
-            jieba.add_word(zh, freq=1000); jcount += 1
+        if has_chinese(zh) and (len(zh) >= 3 or zh in row_bare_allow):
+            zh_lower = zh.lower()
+            terms.append((zh_lower, True))
+            jieba.add_word(zh_lower, freq=1000); jcount += 1
         elif not has_chinese(zh):
             en = str(row.get("Skill_Name", "")).strip().lower()
             if len(en) >= 2:
@@ -260,10 +247,11 @@ def load_automaton(lexicon_path: str):
             for kw in kw_str.split("｜"):
                 kw = kw.strip()
                 if has_chinese(kw):
-                    if len(kw) < 2 or (len(kw) == 2 and kw not in _ZH_2CHAR_SKILL_ALLOWLIST):
+                    if len(kw) < 2 or (len(kw) == 2 and kw not in row_bare_allow):
                         continue
-                    terms.append((kw, True))
-                    jieba.add_word(kw, freq=1000); jcount += 1
+                    kw_lower = kw.lower()
+                    terms.append((kw_lower, True))
+                    jieba.add_word(kw_lower, freq=1000); jcount += 1
                 else:
                     if len(kw) < 2:
                         continue
@@ -275,7 +263,7 @@ def load_automaton(lexicon_path: str):
             if not is_zh:
                 continue
             for variant in expand_synonyms(term):
-                if len(variant) >= 3 or variant in _ZH_2CHAR_SKILL_ALLOWLIST:
+                if len(variant) >= 3 or variant in row_bare_allow:
                     extra_syn.append((variant, True))
                     jieba.add_word(variant, freq=1000); jcount += 1
         terms.extend(extra_syn)

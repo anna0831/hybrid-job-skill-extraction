@@ -45,7 +45,11 @@ htmlcov/
 # Sensitive & Heavy Datasets (Proprietary Lightcast & Full 104 data)
 dataset/
 AC 後檔案/
+AC後檔案/
 *.xlsx
+*.parquet
+*.docx
+~$*.docx
 outputs/*.xlsx
 outputs/*.csv
 outputs/*.parquet

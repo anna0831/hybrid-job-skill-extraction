@@ -69,7 +69,9 @@ class JDSegmenter:
         unit_idx = 0
         current_offset = 0
 
-        lines = job_desc.splitlines()
+        # 預先處理緊湊連黏之條列編號 (如 "Server Dsign2. Board debug" -> "Server Dsign\n2. Board debug")
+        normalized_desc = re.sub(r"([^\s\d])(?=\d+[\.、\)]\s*[a-zA-Z\u4e00-\u9fff])", r"\1\n", job_desc)
+        lines = normalized_desc.splitlines()
         for line in lines:
             line_str = line.strip()
             if not line_str:

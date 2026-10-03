@@ -141,7 +141,7 @@ class HybridJobSkillPipeline:
                 verified_ac_skills.append(cand)
 
         # 步驟 5 (Stage C-E): 殘差語意技能召回 (Residual Semantic Recovery)
-        # 關鍵重構：不再只對 skill_count == 0 執行，而是對所有未被完全覆蓋之職缺執行殘差單元分析
+        # 唯一權威流程: AC -> Residual Detection -> Hybrid Retrieval -> Semantic Verification -> Final Merge
         recovered_skills: List[CandidateSkill] = []
         fn_recovery_res: Optional[FNRecoveryResult] = None
 
@@ -151,26 +151,41 @@ class HybridJobSkillPipeline:
                 job_id=job_id,
                 job_title=clean_title,
                 job_desc=texts[0],
-                ac_matches=verified_ac_skills,
+                ac_matches=candidates,
                 tools=texts[2],
                 job_skills=texts[1],
+                excluded_skill_ids=rejected_ids,
             )
             recovered_skills = res_result.recovered_skills
 
-            if not self.residual_engine.disable_retrieval:
-                # 兼容既有 fn_recovery_res 格式以支援審核總表
-                fn_recovery_res = self.grounder.recover_job_skills(
-                    job_id=job_id,
-                    job_title=clean_title,
-                    job_desc=texts[0],
-                    tools=texts[2],
-                    job_skills=texts[1],
-                    existing_candidate_texts=[c.matched_keyword for c in candidates],
+            # 構建結構化審計與審核結果
+            semantic_items = []
+            for v_out in res_result.verification_outputs:
+                from src.grounding.schemas import SemanticRecoveryItem, DecisionType
+                semantic_items.append(
+                    SemanticRecoveryItem(
+                        original_phrase=v_out.source_phrase,
+                        normalized_phrase=v_out.source_phrase.lower().strip(),
+                        semantic_interpretation=v_out.reason,
+                        candidate_skill_ids=[v_out.skill_id] if v_out.skill_id else [],
+                        candidate_skill_names=[v_out.skill_name] if v_out.skill_name else [],
+                        retrieval_score=v_out.confidence,
+                        evidence=v_out.evidence,
+                        confidence=v_out.confidence,
+                        decision=v_out.decision,
+                        selected_skill_id=v_out.skill_id if v_out.decision == DecisionType.MATCH else None,
+                        selected_skill_name_zh=v_out.skill_name if v_out.decision == DecisionType.MATCH else None,
+                        ac_result="None",
+                    )
                 )
-                # 確保殘差召回的技能同步加入
-                for r_cand in recovered_skills:
-                    if r_cand.skill_id not in fn_recovery_res.recovered_skill_ids:
-                        fn_recovery_res.recovered_skill_ids.append(r_cand.skill_id)
+
+            fn_recovery_res = FNRecoveryResult(
+                job_id=job_id,
+                job_title=clean_title,
+                semantic_items=semantic_items,
+                recovered_skill_ids=[c.skill_id for c in recovered_skills],
+                stats=res_result.stats,
+            )
 
         # 步驟 6: 最終聚合技能 (Final Hybrid Skills = Verified AC + Recovered)
         final_skills: List[CandidateSkill] = list(verified_ac_skills)
@@ -181,29 +196,6 @@ class HybridJobSkillPipeline:
             if r_cand.skill_id not in existing_ids:
                 final_skills.append(r_cand)
                 existing_ids.add(r_cand.skill_id)
-
-        # 同步加入概念接地器召回技能 (包含 Mock / Domain 映射技能)
-        if fn_recovery_res and fn_recovery_res.recovered_skill_ids:
-            for s_id in fn_recovery_res.recovered_skill_ids:
-                if s_id in self.matcher.skill_index and s_id not in existing_ids:
-                    s_dict = self.matcher.skill_index[s_id]
-                    final_skills.append(
-                        CandidateSkill(
-                            skill_id=s_dict["SKILL_ID"],
-                            skill_name=s_dict["SKILL_NAME"],
-                            skill_name_zh=s_dict["SKILL_NAME_ZH"],
-                            skill_type=s_dict.get("SKILL_TYPE", "Hard Skill"),
-                            skill_cat9=s_dict.get("SKILL_CAT9", "Unclassified"),
-                            category_code=s_dict.get("SKILL_CATEGORY", "0"),
-                            category_name=s_dict.get("SKILL_CATEGORY_NAME", ""),
-                            subcategory_code=s_dict.get("SKILL_SUBCATEGORY", "0"),
-                            subcategory_name=s_dict.get("SKILL_SUBCATEGORY_NAME", ""),
-                            is_software=s_dict.get("IS_SOFTWARE", False),
-                            matched_keyword=f"[FN:{s_dict['SKILL_NAME_ZH']}]",
-                            field_source="FN_RECOVERY",
-                        )
-                    )
-                    existing_ids.add(s_id)
 
         routing_res.fn_recovery_result = fn_recovery_res
         return final_skills, routing_res, verification_records
@@ -224,21 +216,43 @@ class HybridJobSkillPipeline:
         ac_cands = self.matcher.extract_job_skills(texts, job_title=clean_title)
         ac_keywords = [c.matched_keyword for c in ac_cands]
 
-        # 2. 執行語意概念接地與假陰性診斷
-        fn_res = self.grounder.recover_job_skills(
+        # 2. 執行殘差語意召回診斷 (唯一標準流程)
+        res_result = self.residual_engine.recover_residuals(
             job_id=job_id,
             job_title=clean_title,
             job_desc=texts[0],
+            ac_matches=ac_cands,
             tools=texts[2],
             job_skills=texts[1],
-            existing_candidate_texts=ac_keywords,
         )
 
-        # 補充 AC 匹配結果標記
-        for s_item in fn_res.semantic_items:
-            s_item.ac_result = "None" if not ac_keywords else f"AC已匹配: {', '.join(ac_keywords)}"
+        semantic_items = []
+        for v_out in res_result.verification_outputs:
+            from src.grounding.schemas import SemanticRecoveryItem, DecisionType
+            semantic_items.append(
+                SemanticRecoveryItem(
+                    original_phrase=v_out.source_phrase,
+                    normalized_phrase=v_out.source_phrase.lower().strip(),
+                    semantic_interpretation=v_out.reason,
+                    candidate_skill_ids=[v_out.skill_id] if v_out.skill_id else [],
+                    candidate_skill_names=[v_out.skill_name] if v_out.skill_name else [],
+                    retrieval_score=v_out.confidence,
+                    evidence=v_out.evidence,
+                    confidence=v_out.confidence,
+                    decision=v_out.decision,
+                    selected_skill_id=v_out.skill_id if v_out.decision == DecisionType.MATCH else None,
+                    selected_skill_name_zh=v_out.skill_name if v_out.decision == DecisionType.MATCH else None,
+                    ac_result="None" if not ac_keywords else f"AC已匹配: {', '.join(ac_keywords)}",
+                )
+            )
 
-        return fn_res
+        return FNRecoveryResult(
+            job_id=job_id,
+            job_title=clean_title,
+            semantic_items=semantic_items,
+            recovered_skill_ids=[c.skill_id for c in res_result.recovered_skills],
+            stats=res_result.stats,
+        )
 
     def generate_review_table(
         self, fn_results: List[FNRecoveryResult]
@@ -308,13 +322,24 @@ class HybridJobSkillPipeline:
             if init_snap:
                 progress_callback(init_snap)
 
-        for i, row in df.iterrows():
+        # 預先抽取目標欄位為原生清單，消除 df.iterrows() 每列建立 Series 的額外開銷
+        if id_col in df.columns:
+            ids = [
+                str(val) if pd.notna(val) else f"JOB_{i}"
+                for i, val in enumerate(df[id_col])
+            ]
+        else:
+            ids = [f"JOB_{i}" for i in range(total_jobs)]
+
+        titles = [str(x) if pd.notna(x) else "" for x in df[title_col]] if title_col in df.columns else [""] * total_jobs
+        descs = [str(x) if pd.notna(x) else "" for x in df[desc_col]] if desc_col in df.columns else [""] * total_jobs
+        tools_list = [str(x) if pd.notna(x) else "" for x in df[tool_col]] if tool_col in df.columns else [""] * total_jobs
+        skills_list = [str(x) if pd.notna(x) else "" for x in df[skill_col]] if skill_col in df.columns else [""] * total_jobs
+
+        for i, (job_id, title, desc, tools, skills) in enumerate(
+            zip(ids, titles, descs, tools_list, skills_list)
+        ):
             t_job_start = time.time()
-            job_id = str(row.get(id_col, f"JOB_{i}"))
-            title = str(row.get(title_col, ""))
-            desc = str(row.get(desc_col, ""))
-            tools = str(row.get(tool_col, ""))
-            skills = str(row.get(skill_col, ""))
 
             final_skills, routing_res, _ = self.extract_job_skills(
                 job_id=job_id,

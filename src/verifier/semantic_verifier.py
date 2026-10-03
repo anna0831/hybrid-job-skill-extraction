@@ -35,8 +35,8 @@ class SemanticVerifier:
         self,
         skill_id_index: Dict[str, Dict[str, Any]],
         verifier: Optional[BaseVerifier] = None,
-        match_threshold: float = 0.80,
-        uncertain_threshold: float = 0.50,
+        match_threshold: float = 0.60,
+        uncertain_threshold: float = 0.45,
     ):
         self.skill_id_index = skill_id_index
         self.verifier = verifier or MockVerifier()
@@ -102,13 +102,61 @@ class SemanticVerifier:
                 reason="安全性攔截：候選 Skill_ID 不存在於合法詞庫中",
             )
 
-        # 決策判定
+        # 決策判定 (包含領域消歧與邊界差異判定)
+        second_score = top_k_candidates[1].similarity_score if len(top_k_candidates) > 1 else 0.0
         if score >= self.match_threshold:
-            decision = DecisionType.MATCH
-            conf = score
-            sel_id = top_cand.skill_id
-            sel_name = top_cand.skill_name_zh
-            reason = f"語意強烈支持：短語 '{target_phrase}' 與詞庫標準技能 '{sel_name}' ({top_cand.skill_name_en}) 高度吻合"
+            title_lower = (job_title or "").lower()
+            top1_cat = (top_cand.category_zh or "").lower()
+            top2_cat = (top_k_candidates[1].category_zh or "").lower() if len(top_k_candidates) > 1 else ""
+
+            is_eng_job = any(k in title_lower for k in ["工程", "硬體", "電子", "研發", "engineer", "hardware"])
+            top1_is_eng = any(k in top1_cat for k in ["製造", "工程", "技術", "資訊", "it", "manufacturing"])
+            top2_is_eng = any(k in top2_cat for k in ["製造", "工程", "技術", "資訊", "it", "manufacturing"])
+
+            if len(top_k_candidates) > 1 and (score - second_score < 0.15) and is_eng_job:
+                if top1_is_eng and not top2_is_eng:
+                    decision = DecisionType.MATCH
+                    conf = score
+                    sel_id = top_cand.skill_id
+                    sel_name = top_cand.skill_name_zh
+                    reason = f"語意與領域支持：短語 '{target_phrase}' 與工程職位領域相符，消歧後判定為 '{sel_name}' ({top_cand.skill_name_en})"
+                elif top2_is_eng and not top1_is_eng:
+                    top2 = top_k_candidates[1]
+                    decision = DecisionType.MATCH
+                    conf = second_score
+                    sel_id = top2.skill_id
+                    sel_name = top2.skill_name_zh
+                    reason = f"語意與領域支持：短語 '{target_phrase}' 與工程職位領域相符，消歧後選擇工程領域技能 '{sel_name}' ({top2.skill_name_en}) 排除跨領域 '{top_cand.skill_name_zh}'"
+                elif score < 0.70 and (score - second_score < 0.05):
+                    decision = DecisionType.UNCERTAIN
+                    conf = score
+                    sel_id = None
+                    sel_name = None
+                    reason = f"候選歧義：短語 '{target_phrase}' 與多個候選相似度過於接近 (Top 1: {top_cand.skill_name_zh} {score:.4f}, Top 2: {top_k_candidates[1].skill_name_zh} {second_score:.4f})，留存人工審核"
+                else:
+                    decision = DecisionType.MATCH
+                    conf = score
+                    sel_id = top_cand.skill_id
+                    sel_name = top_cand.skill_name_zh
+                    reason = f"語意強烈支持：短語 '{target_phrase}' 與詞庫標準技能 '{sel_name}' ({top_cand.skill_name_en}) 高度吻合"
+            elif is_eng_job and not top1_is_eng and any(k in top1_cat for k in ["設計與媒體", "視覺", "media", "visual", "個人照顧"]):
+                decision = DecisionType.NO_MATCH
+                conf = score
+                sel_id = None
+                sel_name = None
+                reason = f"領域衝突：工程職位短語 '{target_phrase}' 檢索出非工程領域技能 '{top_cand.skill_name_zh}' ({top_cand.category_zh})，安全駁回"
+            elif score < 0.70 and len(top_k_candidates) > 1 and (score - second_score < 0.05):
+                decision = DecisionType.UNCERTAIN
+                conf = score
+                sel_id = None
+                sel_name = None
+                reason = f"候選歧義：短語 '{target_phrase}' 與多個候選相似度過於接近 (Top 1: {top_cand.skill_name_zh} {score:.4f}, Top 2: {top_k_candidates[1].skill_name_zh} {second_score:.4f})，留存人工審核"
+            else:
+                decision = DecisionType.MATCH
+                conf = score
+                sel_id = top_cand.skill_id
+                sel_name = top_cand.skill_name_zh
+                reason = f"語意強烈支持：短語 '{target_phrase}' 與詞庫標準技能 '{sel_name}' ({top_cand.skill_name_en}) 高度吻合"
         elif score >= self.uncertain_threshold:
             decision = DecisionType.UNCERTAIN
             conf = score

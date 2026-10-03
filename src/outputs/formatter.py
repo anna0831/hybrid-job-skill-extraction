@@ -61,27 +61,45 @@ def skills_to_wide(
         empty_cols = ["ID", "技能數", "技能_中文"] + list(mapping.values())
         agg_df = pd.DataFrame(columns=empty_cols)
     else:
-        def agg(group: pd.DataFrame) -> pd.Series:
-            result = {
-                "技能數": len(group),
-                "技能_中文": "｜".join(group["SKILL_NAME_ZH"].astype(str)),
-            }
-            for en_cat, zh_col in mapping.items():
-                skills_in_cat = "｜".join(
-                    r["SKILL_NAME_ZH"]
-                    for _, r in group.iterrows()
-                    if r.get("SKILL_CAT9", "Unclassified") == en_cat
-                )
-                result[zh_col] = skills_in_cat
-            return pd.Series(result)
+        # 快速字典聚合（替代原本昂貴的 groupby.apply + 巢狀 iterrows）
+        grouped_skills: Dict[str, List[str]] = {}
+        grouped_cat_skills: Dict[str, Dict[str, List[str]]] = {
+            zh_col: {} for zh_col in mapping.values()
+        }
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            agg_df = (
-                long_df.groupby("ID")
-                .apply(agg, include_groups=False)
-                .reset_index()
-            )
+        id_idx = long_df.columns.get_loc("ID")
+        zh_idx = long_df.columns.get_loc("SKILL_NAME_ZH")
+        cat_idx = long_df.columns.get_loc("SKILL_CAT9") if "SKILL_CAT9" in long_df.columns else -1
+
+        for row in long_df.itertuples(index=False):
+            jid = str(row[id_idx])
+            zh = str(row[zh_idx]) if pd.notna(row[zh_idx]) else ""
+            cat = str(row[cat_idx]) if cat_idx >= 0 and pd.notna(row[cat_idx]) else "Unclassified"
+            zh_col = mapping.get(cat)
+
+            if jid not in grouped_skills:
+                grouped_skills[jid] = [zh]
+            else:
+                grouped_skills[jid].append(zh)
+
+            if zh_col and zh_col in grouped_cat_skills:
+                cat_dict = grouped_cat_skills[zh_col]
+                if jid not in cat_dict:
+                    cat_dict[jid] = [zh]
+                else:
+                    cat_dict[jid].append(zh)
+
+        sorted_ids = sorted(grouped_skills.keys())
+        agg_data: Dict[str, Any] = {
+            "ID": sorted_ids,
+            "技能數": [len(grouped_skills[jid]) for jid in sorted_ids],
+            "技能_中文": ["｜".join(grouped_skills[jid]) for jid in sorted_ids],
+        }
+        for zh_col in mapping.values():
+            cat_dict = grouped_cat_skills[zh_col]
+            agg_data[zh_col] = ["｜".join(cat_dict.get(jid, [])) for jid in sorted_ids]
+
+        agg_df = pd.DataFrame(agg_data)
 
     desc_cols = [
         "ID",

@@ -13,6 +13,16 @@ from src.lexicon.expander import expand_synonyms, get_stemmed_term
 logger = logging.getLogger(__name__)
 
 
+def _clean_str(val: Any) -> str:
+    """清理可選字串欄位，防止 NaN/None/空值轉為字面 'nan'。"""
+    if val is None or pd.isna(val):
+        return ""
+    s = str(val).strip()
+    if s.lower() in ("nan", "none", "null"):
+        return ""
+    return s
+
+
 class LexiconLoader:
     """詞庫載入與索引構建器。"""
 
@@ -57,10 +67,15 @@ class LexiconLoader:
             except (ValueError, TypeError):
                 cat_code = 0
 
+            skill_id = str(row.get("Skill_ID", ""))
+            skill_name = _clean_str(row.get("Skill_Name"))
+            skill_name_zh = _clean_str(row.get("Skill_Name_ZH"))
+            kw_str = _clean_str(row.get("Keywords"))
+
             skill_entry = SkillEntry(
-                skill_id=str(row["Skill_ID"]),
-                skill_name=str(row.get("Skill_Name", "")),
-                skill_name_zh=str(row.get("Skill_Name_ZH", "")),
+                skill_id=skill_id,
+                skill_name=skill_name,
+                skill_name_zh=skill_name_zh,
                 skill_type=str(row.get("Skill_Type", "Hard Skill")),
                 skill_cat9=str(row.get("Skill_Category", "Unclassified")),
                 category_code=str(row.get("Category_Code", "0")),
@@ -69,11 +84,6 @@ class LexiconLoader:
                 subcategory_name=str(row.get("Subcategory_Name", "")),
                 is_software=(cat_code in self.software_categories),
             )
-            skill_dict = skill_entry.model_dump()
-            kw_str = str(row.get("Keywords", "")).strip()
-            if kw_str.lower() == "nan":
-                kw_str = ""
-
             compat_skill_dict = {
                 "SKILL_ID": skill_entry.skill_id,
                 "SKILL_NAME": skill_entry.skill_name,
@@ -89,28 +99,26 @@ class LexiconLoader:
             }
             skill_id_index[skill_entry.skill_id] = compat_skill_dict
 
-            # 中文詞條存進自動機/jieba前一併轉小寫：比對階段（ac_matcher/engine.py）
-            # 全文一律先 text_lower = raw_text.lower() 才拿去比對，中文字本身沒有大小寫、
-            # .lower() 對純中文是no-op，但像「X光」「.NET」這種中英混合關鍵字，原本用原始
-            # 大小寫存進自動機的話，比對小寫化後的文字永遠對不上。
+            # 中文詞條存進自動機/jieba前一併轉小寫
             terms: List[Tuple[str, bool]] = []
-            zh = str(row.get("Skill_Name_ZH", "")).strip()
-            if has_chinese(zh) and (len(zh) >= 3 or zh in self.zh_allowlist):
-                zh_lower = zh.lower()
-                terms.append((zh_lower, True))
-                jieba.add_word(zh_lower, freq=1000)
-                jcount += 1
-            elif not has_chinese(zh):
-                if len(zh) >= 2:
-                    terms.append((zh.lower(), False))
-                en = str(row.get("Skill_Name", "")).strip().lower()
+            if skill_name_zh:
+                if has_chinese(skill_name_zh) and (len(skill_name_zh) >= 3 or skill_name_zh in self.zh_allowlist):
+                    zh_lower = skill_name_zh.lower()
+                    terms.append((zh_lower, True))
+                    jieba.add_word(zh_lower, freq=1000)
+                    jcount += 1
+                elif not has_chinese(skill_name_zh) and len(skill_name_zh) >= 2:
+                    terms.append((skill_name_zh.lower(), False))
+            elif skill_name:
+                en = skill_name.lower()
                 if len(en) >= 2:
                     terms.append((en, False))
 
-            kw_str = str(row.get("Keywords", "")).strip()
-            if kw_str and kw_str.lower() != "nan":
+            if kw_str:
                 for kw in kw_str.split("｜"):
                     kw = kw.strip()
+                    if not kw or kw.lower() in ("nan", "none", "null"):
+                        continue
                     if has_chinese(kw):
                         if len(kw) < 2 or (len(kw) == 2 and kw not in self.zh_allowlist):
                             continue

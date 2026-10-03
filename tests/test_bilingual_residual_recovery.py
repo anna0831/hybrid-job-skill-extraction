@@ -225,3 +225,102 @@ def test_jd_segmenter():
     bp_units = [u for u in units if not u.is_potential_skill]
     assert len(bp_units) >= 1
     assert any("月薪" in u.raw_text or "勞健保" in u.raw_text for u in bp_units)
+
+
+def test_compact_concatenated_bullet_points():
+    """迴歸測試：測試無換行、緊湊連黏編號之條列項目切分能力。"""
+    segmenter = JDSegmenter()
+    compact_jd = "1. Server Dsign2. Board debug3. BOM creation4. Documents creation5. Work with team for project development"
+    units = segmenter.segment_jd(compact_jd)
+
+    # 必須精確切分成 5 個獨立條列項目
+    assert len(units) == 5
+    phrases = [u.phrase for u in units]
+    assert "Server Dsign" in phrases
+    assert "Board debug" in phrases
+    assert "BOM creation" in phrases
+    assert "Documents creation" in phrases
+    assert "Work with team for project development" in phrases
+
+
+def test_level_a_retrieval_benchmarks(pipeline_env):
+    """LEVEL A 檢索測試：評估 Recall@1, Recall@5, Recall@10 與 MRR。"""
+    from src.evaluation.retrieval_metrics import evaluate_retrieval_dataset
+    from src.retrieval.hybrid import HybridRetriever
+
+    retriever = HybridRetriever(skill_id_index=pipeline_env["skill_index"])
+
+    test_queries = [
+        {
+            "query": "Server Dsign",  # 包含錯字
+            "gold_skill_ids": ["KS121X369RKT17LSJNZX"],  # 電路設計
+        },
+        {
+            "query": "Server Design",
+            "gold_skill_ids": ["KS121X369RKT17LSJNZX"],  # 電路設計
+        },
+        {
+            "query": "Board debug",
+            "gold_skill_ids": ["KS121X369RKT17LSJNZX"],  # 電路設計
+        },
+        {
+            "query": "BOM creation",
+            "gold_skill_ids": ["KS120000000000000013"],  # 物料清單
+        },
+        {
+            "query": "Work with team for project development",
+            "gold_skill_ids": ["KS1270P6SLFCFT476Y3R", "KS120000000000000002"],  # 新產品開發 / 訓練與發展
+        },
+    ]
+
+    metrics = evaluate_retrieval_dataset(test_queries, retriever=retriever, k_list=[1, 5, 10])
+
+    print("\n[LEVEL A RETRIEVAL METRICS]")
+    print(f"Recall@1:  {metrics['Recall@1'] * 100:.1f}%")
+    print(f"Recall@5:  {metrics['Recall@5'] * 100:.1f}%")
+    print(f"Recall@10: {metrics['Recall@10'] * 100:.1f}%")
+    print(f"MRR:       {metrics['MRR']:.4f}")
+
+    # 檢索層驗證：Recall@5 必須達到 100%，MRR 必須 >= 0.70
+    assert metrics["Recall@5"] == 1.0
+    assert metrics["MRR"] >= 0.70
+
+
+def test_level_b_end_to_end_hardware_recovery(pipeline_env):
+    """LEVEL B 端到端驗證：測試目標硬體研發工程師職缺的完整擷取與合法性。"""
+    hybrid_pipeline = pipeline_env["hybrid_pipeline"]
+
+    job_title = "硬體研發工程師"
+    job_desc = """【工作內容】
+1. Server Dsign
+2. Board debug
+3. BOM creation
+4. Documents creation
+5. Work with team for project development
+"""
+    final_skills, routing_res, _ = hybrid_pipeline.extract_job_skills(
+        job_id="E2E_HARDWARE_TEST",
+        job_title=job_title,
+        job_desc=job_desc,
+    )
+
+    final_ids = [s.skill_id for s in final_skills]
+    final_names = [s.skill_name_zh for s in final_skills]
+
+    print(f"\n[LEVEL B FINAL RECOVERED SKILLS]: {list(zip(final_names, final_ids))}")
+
+    # 1. BOM 必須存在 (AC 命中)
+    assert "KS120000000000000013" in final_ids  # 物料清單
+    assert "物料清單" in final_names
+
+    # 2. Server Dsign / Board debug 殘差召回電路設計
+    assert "KS121X369RKT17LSJNZX" in final_ids  # 電路設計
+    assert "電路設計" in final_names
+
+    # 3. 嚴格防偽：詞庫中無「文件管理」，絕不可憑空發明
+    assert "文件管理" not in final_names
+
+    # 4. 所有產出技能必須具備合法 Skill_ID
+    for sid in final_ids:
+        assert sid in pipeline_env["skill_index"]
+

@@ -17,7 +17,7 @@ from src.routing.schemas import RouteTrack
 from src.llm_verifier.schemas import LLMVerdict
 from src.outputs.formatter import skills_to_wide, load_cat9_mapping
 from src.preprocessing.normalizer import clean_text
-from src.utils.progress import ProgressSnapshot, format_time
+from src.utils.progress import ProgressSnapshot, ProgressTracker, format_time
 
 # 設定網頁標題與寬版版面
 st.set_page_config(
@@ -29,13 +29,15 @@ st.set_page_config(
 
 
 @st.cache_resource
-def get_pipeline(lexicon_path: str = "lexicon/sample/mini_skill_lexicon.csv"):
-    """快取載入 Hybrid Pipeline，避免重複建置 AC 自動機。"""
+def get_pipeline(lexicon_path: str = "lexicon/sample/mini_skill_lexicon.csv", is_fast_mode: bool = True):
+    """快取載入 Pipeline，依運行模式設定是否啟用語意驗證與殘差召回。"""
     return HybridJobSkillPipeline(
         lexicon_path=lexicon_path,
         verifier_provider="mock",
         grounder_provider="mock",
-        enable_fn_recovery=True,
+        enable_fn_recovery=not is_fast_mode,
+        bypass_verification=is_fast_mode,
+        disable_retrieval=is_fast_mode,
     )
 
 
@@ -43,7 +45,7 @@ def main():
     st.title("💼 104 職缺技能擷取系統 (RA 操作介面)")
     st.markdown(
         """
-        本系統結合 **Aho-Corasick 高速比對**、**三軌動態風險分流** 與 **LLM 語意驗證**。  
+        本系統結合 **Aho-Corasick 高速比對**、**三規則確定性過濾** 與 **快速寬表格聚合**。  
         專為研究團隊打造：**自動過濾福利薪資（月薪）、5S 清潔、學歷與協作者名詞，精準輸出 9 大類技能寬表格**。
         """
     )
@@ -53,6 +55,19 @@ def main():
         st.header("⚙️ 系統設定")
         st.info("💡 預設使用本機確定性 Mock 引擎與開源迷你詞庫，**$0 費用、免輸入 API Key**。")
 
+        st.markdown("### ⚡ 運行模式選擇")
+        mode_option = st.radio(
+            "選擇擷取模式",
+            [
+                "⚡ 快速擷取 (Fast Extraction)",
+                "🔬 混合驗證 (Hybrid Validation) [實驗性]",
+            ],
+            index=0,
+            help="【⚡ 快速擷取】：Aho-Corasick + 確定性規則比對 + 快速寬表格聚合。極速、0 API 成本、100% 輸出等價。\n\n【🔬 混合驗證】：包含上下文驗證 (LLM Verifier) 與殘差語意召回 (Residual Semantic Recovery)。",
+        )
+        is_fast_mode = mode_option.startswith("⚡")
+
+        st.divider()
         lexicon_option = st.selectbox(
             "詞庫來源",
             ["開源示範迷你詞庫 (Mini Lexicon)", "上傳自訂詞庫 (.csv / .xlsx)"],
@@ -68,8 +83,6 @@ def main():
                 with open(lexicon_path, "wb") as f:
                     f.write(uploaded_lex.getbuffer())
                 st.success(f"已載入自訂詞庫：{uploaded_lex.name}")
-
-        enable_fn = st.checkbox("啟用兩階段概念接地 (假陰性召回)", value=True)
 
         st.divider()
         st.markdown("### 📚 快速載入示範職缺")
@@ -110,8 +123,8 @@ def main():
         selected_sample = sample_jobs[selected_sample_key]
 
     # 初始化 Pipeline
-    pipeline = get_pipeline(lexicon_path)
-    pipeline.enable_fn_recovery = enable_fn
+    pipeline = get_pipeline(lexicon_path, is_fast_mode=is_fast_mode)
+    pipeline.enable_fn_recovery = not is_fast_mode
 
     tab1, tab2, tab3 = st.tabs(["📝 單篇職缺快速分析", "📁 批次 104 檔案處理 (Excel/CSV)", "📊 系統成效與消融矩陣"])
 
@@ -140,7 +153,12 @@ def main():
             if not job_title and not job_desc:
                 st.warning("請至少輸入職位名稱或職位描述！")
             else:
-                with st.spinner("正在執行多模式比對、風險分流與語意驗證..."):
+                spinner_msg = (
+                    "正在執行 Aho-Corasick 高速比對與確定性規則判定..."
+                    if is_fast_mode
+                    else "正在執行多模式比對、風險分流與語意驗證..."
+                )
+                with st.spinner(spinner_msg):
                     t_start = time.time()
                     final_skills, routing_res, verif_records = pipeline.extract_job_skills(
                         job_id="SAMPLE_01",
@@ -151,7 +169,8 @@ def main():
                     )
                     latency = (time.time() - t_start) * 1000
 
-                st.success(f"✨ 分析完成！耗時 {latency:.2f} ms")
+                mode_name = "⚡ 快速擷取" if is_fast_mode else "🔬 混合驗證"
+                st.success(f"✨ 分析完成 ({mode_name})！耗時 {latency:.2f} ms")
 
                 # 1. 技能標籤總覽
                 st.markdown("### 🏷️ 擷取技能總覽")
@@ -169,67 +188,73 @@ def main():
 
                 # 2. 審計追蹤與決策說明
                 st.markdown("### 🔍 決策分析與審計追蹤 (Audit Trail)")
-                col_a, col_b = st.columns(2)
-
-                with col_a:
-                    st.markdown("#### 1. 風險分流決策 (Risk Routing)")
-                    if routing_res.decisions:
-                        for dec in routing_res.decisions:
-                            track_name = {
-                                RouteTrack.PASS_THROUGH: "🟢 Track 1: 直通放行 (Pass-Through)",
-                                RouteTrack.VERIFY_CONTEXT: "🟡 Track 2: 上下文驗證 (Verify Context)",
-                                RouteTrack.RECOVER_FN: "🔵 Track 3: 概念接地 (Recover FN)",
-                            }.get(dec.track, dec.track.value)
-                            st.markdown(
-                                f"- **{dec.matched_keyword}** → `{dec.skill_name_zh}`  \n"
-                                f"  分流: {track_name} (風險分: {dec.risk_score:.2f})  \n"
-                                f"  *觸發原因: {', '.join(dec.risk_reasons) if dec.risk_reasons else '低風險安全詞'}*"
-                            )
-                    elif routing_res.needs_fn_recovery:
-                        st.markdown("🔵 **Track 3**: AC 候選為 0，觸發兩階段概念接地層。")
-
-                with col_b:
-                    st.markdown("#### 2. LLM 語意審查與假陽性過濾")
-                    if verif_records:
-                        for v in verif_records:
-                            status_icon = "✅ 保留 (KEEP)" if v.llm_verdict == LLMVerdict.KEEP else "❌ 駁回 (REJECT)"
-                            st.markdown(
-                                f"- **{v.skill_name_zh}** (關鍵字: `{v.matched_keyword}`)  \n"
-                                f"  結果: **{status_icon}**  \n"
-                                f"  原文依據: *\"{v.evidence}\"*  \n"
-                                f"  判定理由: {v.reason}"
-                            )
-                    else:
-                        st.markdown("*(本職缺候選詞皆為低風險直通，無需調用模型審查)*")
-
-                # 3. 概念接地與語意審核表
-                if routing_res.fn_recovery_result:
-                    fn_res = routing_res.fn_recovery_result
-                    if fn_res.recovered_skill_ids:
-                        st.markdown("#### 3. 假陰性概念接地召回 (Stage 2 Grounded)")
-                        for dec in fn_res.decisions:
-                            if dec.status.value == "GROUNDED":
-                                st.success(
-                                    f"🎯 成功將口語/專業縮寫 **'{dec.concept_text}'** 接地映射至詞庫標準詞：**{dec.selected_skill_name_zh}** (ID: `{dec.selected_skill_id}`)  \n"
-                                    f"理由: {dec.reason}"
+                if is_fast_mode:
+                    st.info(
+                        "⚡ **快速擷取模式 (Fast Extraction)**：本職缺技能皆由 Aho-Corasick 高速自動機與確定性規則直接判定，"
+                        "未調用 LLM 上下文審查與殘差召回層（0 API 成本，100% 輸出等價）。  \n"
+                        "💡 若需進行進階上下文消歧或殘差語意召回，請於側邊欄切換至「🔬 混合驗證」模式。"
+                    )
+                else:
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        st.markdown("#### 1. 風險分流決策 (Risk Routing)")
+                        if routing_res.decisions:
+                            for dec in routing_res.decisions:
+                                track_name = {
+                                    RouteTrack.PASS_THROUGH: "🟢 Track 1: 直通放行 (Pass-Through)",
+                                    RouteTrack.VERIFY_CONTEXT: "🟡 Track 2: 上下文驗證 (Verify Context)",
+                                    RouteTrack.RECOVER_FN: "🔵 Track 3: 概念接地 (Recover FN)",
+                                }.get(dec.track, dec.track.value)
+                                st.markdown(
+                                    f"- **{dec.matched_keyword}** → `{dec.skill_name_zh}`  \n"
+                                    f"  分流: {track_name} (風險分: {dec.risk_score:.2f})  \n"
+                                    f"  *觸發原因: {', '.join(dec.risk_reasons) if dec.risk_reasons else '低風險安全詞'}*"
                                 )
+                        elif routing_res.needs_fn_recovery:
+                            st.markdown("🔵 **Track 3**: AC 候選為 0，觸發兩階段概念接地層。")
 
-                    if fn_res.semantic_items:
-                        st.markdown("#### 📋 語意假陰性診斷與審核表 (Human Review Table)")
-                        review_df = pipeline.generate_review_table([fn_res])
-                        st.dataframe(review_df, use_container_width=True)
+                    with col_b:
+                        st.markdown("#### 2. LLM 語意審查與假陽性過濾")
+                        if verif_records:
+                            for v in verif_records:
+                                status_icon = "✅ 保留 (KEEP)" if v.llm_verdict == LLMVerdict.KEEP else "❌ 駁回 (REJECT)"
+                                st.markdown(
+                                    f"- **{v.skill_name_zh}** (關鍵字: `{v.matched_keyword}`)  \n"
+                                    f"  結果: **{status_icon}**  \n"
+                                    f"  原文依據: *\"{v.evidence}\"*  \n"
+                                    f"  判定理由: {v.reason}"
+                                )
+                        else:
+                            st.markdown("*(本職缺候選詞皆為低風險直通，無需調用模型審查)*")
 
-                        # 自動更新並提供 keyword_candidates.csv 下載
-                        kw_df = pipeline.export_keyword_candidates([fn_res])
-                        if not kw_df.empty:
-                            csv_data = kw_df.to_csv(index=False, encoding="utf-8-sig")
-                            st.download_button(
-                                label="📥 下載新發現關鍵字候選表 (keyword_candidates.csv)",
-                                data=csv_data,
-                                file_name="keyword_candidates.csv",
-                                mime="text/csv",
-                                key="download_kw_tab1",
-                            )
+                    # 3. 概念接地與語意審核表
+                    if routing_res.fn_recovery_result:
+                        fn_res = routing_res.fn_recovery_result
+                        if fn_res.recovered_skill_ids:
+                            st.markdown("#### 3. 假陰性概念接地召回 (Stage 2 Grounded)")
+                            for dec in fn_res.decisions:
+                                if dec.status.value == "GROUNDED":
+                                    st.success(
+                                        f"🎯 成功將口語/專業縮寫 **'{dec.concept_text}'** 接地映射至詞庫標準詞：**{dec.selected_skill_name_zh}** (ID: `{dec.selected_skill_id}`)  \n"
+                                        f"理由: {dec.reason}"
+                                    )
+
+                        if fn_res.semantic_items:
+                            st.markdown("#### 📋 語意假陰性診斷與審核表 (Human Review Table)")
+                            review_df = pipeline.generate_review_table([fn_res])
+                            st.dataframe(review_df, use_container_width=True)
+
+                            # 自動更新並提供 keyword_candidates.csv 下載
+                            kw_df = pipeline.export_keyword_candidates([fn_res])
+                            if not kw_df.empty:
+                                csv_data = kw_df.to_csv(index=False, encoding="utf-8-sig")
+                                st.download_button(
+                                    label="📥 下載新發現關鍵字候選表 (keyword_candidates.csv)",
+                                    data=csv_data,
+                                    file_name="keyword_candidates.csv",
+                                    mime="text/csv",
+                                    key="download_kw_tab1",
+                                )
 
     # ==========================================
     # Tab 2: 批次檔案處理
@@ -315,10 +340,19 @@ def main():
                         f"**讀取耗時**：{read_duration:.2f} 秒 ｜ **欄位驗證**：通過"
                     )
 
-                # 4. 醒目的執行按鈕
+                # 4. 醒目的執行按鈕與模式說明
+                if is_fast_mode:
+                    st.info("⚡ **目前模式**：快速擷取 (Aho-Corasick + Rule-Based Skill Matching) — 極速、0 API 成本、100% 輸出等價。")
+                else:
+                    st.warning("🔬 **目前模式**：混合驗證 (Hybrid Validation) [實驗性] — 執行上下文驗證與殘差語意召回。")
+
                 btn_col1, btn_col2 = st.columns([1, 2])
                 with btn_col1:
-                    run_batch = st.button("🚀 執行批次技能擷取", type="primary", use_container_width=True)
+                    run_batch = st.button(
+                        "⚡ 執行快速擷取" if is_fast_mode else "🔬 執行混合驗證",
+                        type="primary",
+                        use_container_width=True,
+                    )
 
                 if run_batch:
                     st.markdown("### ⚙️ 技能擷取進度")
@@ -332,7 +366,10 @@ def main():
                         with metrics_box.container():
                             m1, m2, m3, m4 = st.columns(4)
                             m1.metric("已處理進度", f"{snapshot.processed:,} / {snapshot.total:,}", f"{snapshot.percent}%")
-                            m2.metric("目前階段", snapshot.stage)
+                            current_stage = snapshot.stage
+                            if snapshot.percent >= 100 or snapshot.stage == ProgressTracker.STAGE_AGGREGATING:
+                                current_stage = "正在產生輸出表格..."
+                            m2.metric("目前階段", current_stage)
                             m3.metric("處理速度", snapshot.formatted_speed)
                             m4.metric("預計剩餘 (ETA)", snapshot.formatted_eta, f"已耗時 {snapshot.formatted_elapsed}")
 
@@ -346,8 +383,9 @@ def main():
                         )
                         batch_duration = time.time() - t_start_batch
                         progress_bar.progress(100)
+                        mode_tag = "快速擷取" if is_fast_mode else "混合驗證"
                         status_text.success(
-                            f"🎉 批次處理完成！共處理 {len(df_raw):,} 筆職缺，總耗時 {batch_duration:.2f} 秒 "
+                            f"🎉 {mode_tag}完成！共處理 {len(df_raw):,} 筆職缺，總耗時 {batch_duration:.2f} 秒 "
                             f"(平均 {batch_duration / max(len(df_raw), 1) * 1000:.2f} ms/doc)。"
                         )
                         st.session_state[f"wide_df_{uploaded_file.name}"] = wide_df
