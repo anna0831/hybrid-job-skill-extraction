@@ -55,7 +55,17 @@ outputs/*.csv
 outputs/*.parquet
 outputs/*.db
 *.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.db.*.tmp
 .system_generated/
 !data/sample/
 !lexicon/sample/
 !data/gold_labels/
+
