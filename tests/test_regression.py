@@ -46,7 +46,7 @@ def sample_test_data():
 
 def test_modular_vs_legacy_consistency(sample_test_data):
     """驗證新模組產出的 Candidate Skills 與舊版邏輯高度一致。"""
-    lexicon_path = "lexicon/sample/mini_skill_lexicon.xlsx"
+    lexicon_path = "lexicon/sample/mini_skill_lexicon.csv"
     
     # 1. 舊版方式建構
     legacy_automaton = legacy.load_automaton(lexicon_path)
@@ -76,3 +76,4 @@ def test_modular_vs_legacy_consistency(sample_test_data):
         
         # 驗證抽取的 Skill_ID 完全一致
         assert legacy_ids == new_ids, f"Mismatch for job {row['工作編號']}: legacy={legacy_ids}, new={new_ids}"
+

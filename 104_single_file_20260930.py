@@ -377,7 +377,7 @@ def load_automaton(lexicon_path: str, grouped_lexicon_path: str = None):
         id_lookup, name_lookup, conflicts = {}, {}, []
 
     print(f"  讀取基底詞庫：{lexicon_path}")
-    lex = pd.read_excel(lexicon_path)
+    lex = pd.read_csv(lexicon_path) if str(lexicon_path).lower().endswith(".csv") else pd.read_excel(lexicon_path)
 
     req_base_cols = ["Category_Code", "Category_Name", "Subcategory_Code", "Subcategory_Name",
                      "Skill_ID", "Skill_Name", "Skill_Name_ZH", "Skill_Type", "Keywords"]
@@ -1109,3 +1109,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

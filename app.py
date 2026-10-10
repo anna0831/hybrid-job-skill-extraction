@@ -43,6 +43,11 @@ def get_pipeline(lexicon_path: str = "lexicon/sample/mini_skill_lexicon.csv", is
 
 def main():
     st.title("💼 104 職缺技能擷取系統 (RA 操作介面)")
+    app_mode = st.sidebar.radio("使用功能", ["技能擷取", "SQLite Long 查核"])
+    if app_mode == "SQLite Long 查核":
+        from src.outputs.sqlite_ui import render_sqlite_preview
+        render_sqlite_preview()
+        return
     st.markdown(
         """
         本系統結合 **Aho-Corasick 高速比對**、**三規則確定性過濾** 與 **快速寬表格聚合**。  
@@ -487,3 +492,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

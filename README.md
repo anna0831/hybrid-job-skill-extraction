@@ -1,5 +1,9 @@
 # Hybrid Job Skill Extraction System
 
+SQLite long format 查核：新增分批轉檔、完整原始職缺補入、每頁 100 筆 preview，
+以及餐飲／補教／醫療人工查核候選匯出。操作指令、統計範圍與測試見
+[SQLite 使用文件](docs/sqlite_usage.md)。正式 DB 與資料留在本機；本機既有 test_db.py 不需覆寫。
+
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-53%2F53%20passed-brightgreen.svg)]()
 [![Precision](https://img.shields.io/badge/Precision-100.0%25-success.svg)]()
@@ -192,3 +196,4 @@ PYTHONPATH=. python scripts/run_single_file.py \
 
 ## 📄 License
 本專案採用 [MIT License](LICENSE) 開源授權。
+
