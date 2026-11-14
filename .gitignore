@@ -56,6 +56,9 @@ outputs/*.parquet
 outputs/*.db
 *.db
 .system_generated/
+web_data/lexicon_bundle.json.gz
+web_data/datasets/*.json.gz
+!web_data/datasets/demo_*.json.gz
 !data/sample/
 !lexicon/sample/
 !data/gold_labels/

@@ -1,0 +1,6 @@
+# Vercel Serverless Function 專用精簡依賴（不含 pandas / numpy / pyarrow / nltk / streamlit）
+fastapi>=0.115.0
+pydantic>=2.0.0
+pyahocorasick>=2.0.0
+jieba>=0.42.0
+openpyxl>=3.1.0
