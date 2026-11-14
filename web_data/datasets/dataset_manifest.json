@@ -1,0 +1,174 @@
+{
+  "manifest_version": "1.0.0",
+  "generated_at": "2026-11-14T15:20:04.894454+08:00",
+  "datasets": [
+    {
+      "dataset_id": "demo_changhua_202609",
+      "city": "彰化縣（脫敏示範）",
+      "year_month": "202609",
+      "source_filename": "sample_jobs.jsonl",
+      "source_sha256": "dbd4b9953779df667700ee3326cf21ddb0fe75d7f185639e1b2e00adc2f1a7e7",
+      "raw_job_count": 1,
+      "filtered_job_count": 1,
+      "available_job_count": 1,
+      "sample_size": 1,
+      "sample_seed": 42,
+      "generated_at": "2026-11-14T15:20:04.893316+08:00",
+      "sample_version": "v1_fixed_seed42",
+      "role_filter_rule": "排除 工作角色 == '兼職'（保留全職、高階及其他所有角色）",
+      "access_level": "sanitized_demo",
+      "sampling_modes_supported": [
+        "fixed"
+      ],
+      "sampled_job_ids": [
+        "DEMO_003@202609"
+      ],
+      "duplicate_conflict_count": 0,
+      "sample_file": "demo_changhua_202609.json.gz"
+    },
+    {
+      "dataset_id": "demo_hsinchu_city_202609",
+      "city": "新竹市（脫敏示範）",
+      "year_month": "202609",
+      "source_filename": "sample_jobs.jsonl",
+      "source_sha256": "dbd4b9953779df667700ee3326cf21ddb0fe75d7f185639e1b2e00adc2f1a7e7",
+      "raw_job_count": 1,
+      "filtered_job_count": 1,
+      "available_job_count": 1,
+      "sample_size": 1,
+      "sample_seed": 42,
+      "generated_at": "2026-11-14T15:20:04.893622+08:00",
+      "sample_version": "v1_fixed_seed42",
+      "role_filter_rule": "排除 工作角色 == '兼職'（保留全職、高階及其他所有角色）",
+      "access_level": "sanitized_demo",
+      "sampling_modes_supported": [
+        "fixed"
+      ],
+      "sampled_job_ids": [
+        "DEMO_005@202609"
+      ],
+      "duplicate_conflict_count": 0,
+      "sample_file": "demo_hsinchu_city_202609.json.gz"
+    },
+    {
+      "dataset_id": "demo_taoyuan_202609",
+      "city": "桃園市（脫敏示範）",
+      "year_month": "202609",
+      "source_filename": "sample_jobs.jsonl",
+      "source_sha256": "dbd4b9953779df667700ee3326cf21ddb0fe75d7f185639e1b2e00adc2f1a7e7",
+      "raw_job_count": 1,
+      "filtered_job_count": 1,
+      "available_job_count": 1,
+      "sample_size": 1,
+      "sample_seed": 42,
+      "generated_at": "2026-11-14T15:20:04.893785+08:00",
+      "sample_version": "v1_fixed_seed42",
+      "role_filter_rule": "排除 工作角色 == '兼職'（保留全職、高階及其他所有角色）",
+      "access_level": "sanitized_demo",
+      "sampling_modes_supported": [
+        "fixed"
+      ],
+      "sampled_job_ids": [
+        "DEMO_006@202609"
+      ],
+      "duplicate_conflict_count": 0,
+      "sample_file": "demo_taoyuan_202609.json.gz"
+    },
+    {
+      "dataset_id": "demo_taichung_202609",
+      "city": "臺中市（脫敏示範）",
+      "year_month": "202609",
+      "source_filename": "sample_jobs.jsonl",
+      "source_sha256": "dbd4b9953779df667700ee3326cf21ddb0fe75d7f185639e1b2e00adc2f1a7e7",
+      "raw_job_count": 1,
+      "filtered_job_count": 1,
+      "available_job_count": 1,
+      "sample_size": 1,
+      "sample_seed": 42,
+      "generated_at": "2026-11-14T15:20:04.893929+08:00",
+      "sample_version": "v1_fixed_seed42",
+      "role_filter_rule": "排除 工作角色 == '兼職'（保留全職、高階及其他所有角色）",
+      "access_level": "sanitized_demo",
+      "sampling_modes_supported": [
+        "fixed"
+      ],
+      "sampled_job_ids": [
+        "DEMO_002@202609"
+      ],
+      "duplicate_conflict_count": 0,
+      "sample_file": "demo_taichung_202609.json.gz"
+    },
+    {
+      "dataset_id": "demo_taipei_202609",
+      "city": "臺北市（脫敏示範）",
+      "year_month": "202609",
+      "source_filename": "sample_jobs.jsonl",
+      "source_sha256": "dbd4b9953779df667700ee3326cf21ddb0fe75d7f185639e1b2e00adc2f1a7e7",
+      "raw_job_count": 1,
+      "filtered_job_count": 1,
+      "available_job_count": 1,
+      "sample_size": 1,
+      "sample_seed": 42,
+      "generated_at": "2026-11-14T15:20:04.894198+08:00",
+      "sample_version": "v1_fixed_seed42",
+      "role_filter_rule": "排除 工作角色 == '兼職'（保留全職、高階及其他所有角色）",
+      "access_level": "sanitized_demo",
+      "sampling_modes_supported": [
+        "fixed"
+      ],
+      "sampled_job_ids": [
+        "DEMO_001@202609"
+      ],
+      "duplicate_conflict_count": 0,
+      "sample_file": "demo_taipei_202609.json.gz"
+    },
+    {
+      "dataset_id": "demo_tainan_202609",
+      "city": "臺南市（脫敏示範）",
+      "year_month": "202609",
+      "source_filename": "sample_jobs.jsonl",
+      "source_sha256": "dbd4b9953779df667700ee3326cf21ddb0fe75d7f185639e1b2e00adc2f1a7e7",
+      "raw_job_count": 1,
+      "filtered_job_count": 1,
+      "available_job_count": 1,
+      "sample_size": 1,
+      "sample_seed": 42,
+      "generated_at": "2026-11-14T15:20:04.894327+08:00",
+      "sample_version": "v1_fixed_seed42",
+      "role_filter_rule": "排除 工作角色 == '兼職'（保留全職、高階及其他所有角色）",
+      "access_level": "sanitized_demo",
+      "sampling_modes_supported": [
+        "fixed"
+      ],
+      "sampled_job_ids": [
+        "DEMO_007@202609"
+      ],
+      "duplicate_conflict_count": 0,
+      "sample_file": "demo_tainan_202609.json.gz"
+    },
+    {
+      "dataset_id": "demo_kaohsiung_202609",
+      "city": "高雄市（脫敏示範）",
+      "year_month": "202609",
+      "source_filename": "sample_jobs.jsonl",
+      "source_sha256": "dbd4b9953779df667700ee3326cf21ddb0fe75d7f185639e1b2e00adc2f1a7e7",
+      "raw_job_count": 1,
+      "filtered_job_count": 1,
+      "available_job_count": 1,
+      "sample_size": 1,
+      "sample_seed": 42,
+      "generated_at": "2026-11-14T15:20:04.894447+08:00",
+      "sample_version": "v1_fixed_seed42",
+      "role_filter_rule": "排除 工作角色 == '兼職'（保留全職、高階及其他所有角色）",
+      "access_level": "sanitized_demo",
+      "sampling_modes_supported": [
+        "fixed"
+      ],
+      "sampled_job_ids": [
+        "DEMO_004@202609"
+      ],
+      "duplicate_conflict_count": 0,
+      "sample_file": "demo_kaohsiung_202609.json.gz"
+    }
+  ]
+}

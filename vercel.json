@@ -1,0 +1,33 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 30,
+      "includeFiles": "web_data/**",
+      "excludeFiles": "{tests/**,openspec/**,docs/**,scripts/**,104_*.py,*.xlsx,*.csv,__pycache__/**,**/*.pyc}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/styles.css",
+      "destination": "/web/styles.css"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/web/app.js"
+    },
+    {
+      "source": "/app.html",
+      "destination": "/web/app.html"
+    },
+    {
+      "source": "/",
+      "destination": "/web/index.html"
+    }
+  ]
+}

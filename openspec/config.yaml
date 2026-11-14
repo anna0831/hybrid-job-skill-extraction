@@ -1,0 +1,9 @@
+schema: spec-driven
+project: hybrid-job-skill-extraction
+context: |
+  104 職缺技能擷取研究專案之 Vercel 教授展示版（11/11 AC + Rules 引擎，26,461 技能，G11c 十大分類，LLM 停用）。
+rules:
+  - 不啟用 LLM、MockLLM 或 Embedding
+  - 不改動 11/11 正式 AC + Rules 技能判定邏輯
+  - 不公開未獲授權之 OneDrive 原始職缺資料或本機絕對路徑
+  - 所有 Spec 與 Acceptance Criteria 須可自動化驗證
