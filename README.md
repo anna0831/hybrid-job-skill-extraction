@@ -1,5 +1,9 @@
 # Hybrid Job Skill Extraction System
 
+SQLite long format 查核：新增分批轉檔、完整原始職缺補入、每頁 100 筆 preview，
+以及餐飲／補教／醫療人工查核候選匯出。操作指令、統計範圍與測試見
+[SQLite 使用文件](docs/sqlite_usage.md)。正式 DB 與資料留在本機；本機既有 test_db.py 不需覆寫。
+
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Engine](https://img.shields.io/badge/engine-11%2F14%20AC%20%2B%20Rules%20(No%20LLM)-blue.svg)]()
 [![Lexicon](https://img.shields.io/badge/lexicon-26%2C471%20skills%20(1111z)-teal.svg)]()
@@ -72,5 +76,14 @@ export RESEARCH_API_TOKEN="your-local-test-token"
 
 ## 五、資料與 API 安全保護
 
-- **公開 GitHub 隔離**：`.gitignore` 排除正式 Excel 詞庫、104 原始與清理後職缺資料、編譯後大型 `web_data/lexicon_bundle.json.gz`、以及真實研究抽樣資料，避免未授權研究資料外洩。
-- **Fail-Closed API 驗證**：`/api/datasets/sample`、`/api/extract` 與 `/api/export/xlsx` 強制檢查 `RESEARCH_API_TOKEN`（未設定回傳 `403`，無或錯誤 Bearer Token 回傳 `401`）；`GET /api/datasets` 僅公開去識別化之縣市／月份／樣本數 Metadata，且嚴禁將秘密硬編碼於前端 JavaScript。
+- **公開 GitHub 資料隔離**：`.gitignore` 排除正式 Excel 詞庫、104 原始與清洗後職缺資料、`web_data/lexicon_bundle.json.gz`，以及未獲授權的研究抽樣資料，避免敏感研究資料被提交至公開 Repository。
+- **API 存取驗證**：`/api/datasets/sample`、`/api/extract` 與 `/api/export/xlsx` 對非 `sanitized_demo` 資料集執行 `RESEARCH_API_TOKEN` Bearer 驗證；未設定 Token 回傳 `403`，缺少或錯誤 Token 回傳 `401`。脫敏示範資料不適用這項資料集 Token 驗證。
+- **資料集資訊**：`GET /api/datasets` 僅回傳經允許顯示的資料集 Metadata，不公開未授權職缺原文。
+- **前端安全**：不得將 API Token、私人研究詞庫或儲存空間憑證硬編碼於 JavaScript。
+- **部署限制**：正式 26,471 項技能詞庫尚未取得雲端部署授權，因此目前僅支援經授權的本機研究測試；Vercel Preview 尚未正式驗收。
+
+---
+
+## 六、License
+
+本專案採用 [MIT License](LICENSE) 開源授權。
