@@ -377,7 +377,7 @@ def test_welfare_and_esg_exclusion(loaded_engine):
         "job_description": (
             "【公司簡介】本公司致力於氣候變遷、生態永續與經濟發展。\n"
             "【員工福利】提供團體保險、勞健保與年度健康檢查。\n"
-            "【工作內容】負責產品資料管線整理，且需依 production line 排程回報。"
+            "【工作內容】負責產品資料管線整理，且需依 production line schedule 進度回報。"
         ),
         "job_skills": "",
         "computer_tools": "",
@@ -743,3 +743,279 @@ def test_ui_skill_details_and_batch_explorer():
     assert "selectBatchJob" in app_js
     assert "stepBatchJob" in app_js
     assert "未擷取到技能" in app_js
+
+
+def test_1114_health_version_fields_and_ui(tmp_path: Path):
+    """11/14 回歸：/api/health 必須回傳 7 項版本欄位，缺少時回傳 Unknown，且 app.js 顯示全部 7 項。"""
+    bundle = {
+        "schema_version": "1114_web_bundle_v1",
+        "metadata": {
+            "base_lexicon_filename": "詞庫skill_lexicon_v13_20261111z.xlsx",
+            "base_lexicon_sha256": "722cd2832ffab71b5cee08e1397b890bb6330962194220ed4ca301f7549160bf",
+            "grouped_lexicon_filename": "詞庫skill_lexicon_v13_Chen_grouped_11_2026c.xlsx",
+            "grouped_lexicon_sha256": "e35b53bf5ad3f1da77f25874689f5e1abbe62f22780b31c71ff10f132a3a16bb",
+            "skill_count": 1,
+            "ai_skill_count": 0,
+        },
+        "skills": [
+            {
+                "SKILL_ID": "SK_PY",
+                "SKILL_NAME": "Python",
+                "SKILL_NAME_ZH": "Python",
+                "SKILL_TYPE": "Hard Skill",
+                "Category_Name": "IT",
+                "Subcategory_Name": "Programming",
+                "Keywords": "Python",
+                "Is_AI_Skill": False,
+                "Skill_group10_code": 8,
+                "Skill_group10": "資訊科技、軟體、資料與AI技能",
+            }
+        ],
+    }
+    bundle_path = tmp_path / "mini_1114.json.gz"
+    with gzip.open(bundle_path, "wt", encoding="utf-8") as f:
+        json.dump(bundle, f, ensure_ascii=False)
+
+    engine = WebSkillEngine(bundle_path=str(bundle_path))
+    health = engine.health_info()
+    assert health["ready"] is True
+    assert health["engine_version"] == "20261114_web_ac_v1"
+    assert health["lexicon_version"] == "詞庫skill_lexicon_v13_20261111z.xlsx"
+    assert health["lexicon_sha256"].startswith("722cd2832ffa")
+    assert health["g11c_sha256"].startswith("e35b53bf5ad3")
+    assert health["git_commit_sha"]
+    assert health["skill_count"] == 1
+    assert health["ai_label_review_status"] == "Unknown"
+
+    app_js = Path("web/app.js").read_text(encoding="utf-8")
+    for label in (
+        "Engine Version",
+        "Lexicon Version",
+        "Lexicon SHA256",
+        "G11c SHA256",
+        "Git Commit SHA",
+        "Skill Count",
+        "AI Label Review Status",
+    ):
+        assert label in app_js
+
+
+def test_1114_negation_exclusions_and_case_structured_rules(tmp_path: Path):
+    """11/14 回歸：驗證否定句排除（無需/不需/不用/不必/免）、福利/多義詞排除、大小寫與結構化標籤。"""
+    bundle = {
+        "schema_version": "1114_web_bundle_v1",
+        "metadata": {
+            "base_lexicon_filename": "詞庫skill_lexicon_v13_20261111z.xlsx",
+            "base_lexicon_sha256": "722cd2832ffa",
+            "grouped_lexicon_filename": "詞庫skill_lexicon_v13_Chen_grouped_11_2026c.xlsx",
+            "grouped_lexicon_sha256": "e35b53bf5ad3",
+            "skill_count": 6,
+            "ai_skill_count": 0,
+            "ai_label_review_status": "Pending review (312 AI skills flagged)",
+        },
+        "skills": [
+            {
+                "SKILL_ID": "SK_PY",
+                "SKILL_NAME": "Python",
+                "SKILL_NAME_ZH": "Python程式設計",
+                "Keywords": "Python",
+                "Skill_group10_code": 8,
+                "Skill_group10": "資訊科技、軟體、資料與AI技能",
+            },
+            {
+                "SKILL_ID": "ES9A587DD5CEAD7109D9",
+                "SKILL_NAME": "Employee Relations",
+                "SKILL_NAME_ZH": "員工關係",
+                "Keywords": "員工關係;員工福利",
+                "Skill_group10_code": 5,
+                "Skill_group10": "管理、商業、法遵與治理技能",
+            },
+            {
+                "SKILL_ID": "ES2815D8D964E1547A8F",
+                "SKILL_NAME": "Sales Management",
+                "SKILL_NAME_ZH": "銷售管理",
+                "Keywords": "銷售管理",
+                "Skill_group10_code": 5,
+                "Skill_group10": "管理、商業、法遵與治理技能",
+            },
+            {
+                "SKILL_ID": "KS7G7ZR641Z34Q7M2CZT",
+                "SKILL_NAME": "In-Plane Switching",
+                "SKILL_NAME_ZH": "IPS廣視角技術",
+                "Keywords": "IPs",
+                "Skill_group10_code": 10,
+                "Skill_group10": "工程、自然科學、設計、環境與能源技能",
+            },
+            {
+                "SKILL_ID": "SK_RUST",
+                "SKILL_NAME": "RUST",
+                "SKILL_NAME_ZH": "Rust語言",
+                "Case_Sensitive_Keywords": "RUST",
+                "Keywords": "RUST",
+                "Skill_group10_code": 8,
+                "Skill_group10": "資訊科技、軟體、資料與AI技能",
+            },
+            {
+                "SKILL_ID": "SK_EXCEL",
+                "SKILL_NAME": "Excel",
+                "SKILL_NAME_ZH": "Excel",
+                "Keywords": "",
+                "Structured_Field_Exact_Tags": "Excel",
+                "Skill_group10_code": 6,
+                "Skill_group10": "行政與一般數位技能",
+            },
+        ],
+    }
+    bundle_path = tmp_path / "mini_1114_rules.json.gz"
+    with gzip.open(bundle_path, "wt", encoding="utf-8") as f:
+        json.dump(bundle, f, ensure_ascii=False)
+
+    engine = WebSkillEngine(bundle_path=str(bundle_path))
+
+    # 1. 否定句排除：無需 / 不需 / 不用 / 不必 / 免 皆應排除 Python（重複出現兩次確保無否定時會命中）
+    for neg in ("無需", "不需", "不用", "不必", "免"):
+        res_neg = engine.extract_single_job({
+            "job_id": f"NEG_{neg}",
+            "104職位名稱": "行政專員",
+            "職位描述": f"負責日常行政文書作業，{neg}Python 經驗，工作上也{neg}Python 開發。",
+        })
+        assert all(s["SKILL_ID"] != "SK_PY" for s in res_neg["skills"]), f"{neg} 未排除 Python"
+
+    # 2. 正向需求應命中 Python
+    res_pos = engine.extract_single_job({
+        "job_id": "POS_PY",
+        "104職位名稱": "資料工程師",
+        "職位描述": "熟悉 Python 資料處理，能以 Python 進行自動化腳本開發。",
+    })
+    assert any(s["SKILL_ID"] == "SK_PY" for s in res_pos["skills"])
+
+    # 3. 11/14 福利/多義詞排除：員工福利、門市銷售管理、IC 設計 IPs
+    res_excl = engine.extract_single_job({
+        "job_id": "EXCL_1",
+        "104職位名稱": "門市人員",
+        "職位描述": (
+            "享優渥員工福利與三節獎金，完整員工福利制度。"
+            "負責門市商品陳列與銷售管理，協助門市銷售管理執行。"
+            "另徵 IC 設計半導體矽智財 IPs 驗證，熟悉數位 IPs 整合。"
+        ),
+    })
+    excl_ids = {s["SKILL_ID"] for s in res_excl["skills"]}
+    assert "ES9A587DD5CEAD7109D9" not in excl_ids
+    assert "ES2815D8D964E1547A8F" not in excl_ids
+    assert "KS7G7ZR641Z34Q7M2CZT" not in excl_ids
+
+    # 4. Case_Sensitive_Keywords 與 Structured_Field_Exact_Tags
+    res_cs_sf = engine.extract_single_job({
+        "job_id": "CS_SF",
+        "104職位名稱": "後端工程師",
+        "職位描述": "使用 RUST 開發微服務，熟悉 RUST 系統程式設計。",
+        "電腦工具": "Excel",
+    })
+    cs_sf_ids = {s["SKILL_ID"] for s in res_cs_sf["skills"]}
+    assert "SK_RUST" in cs_sf_ids
+    assert "SK_EXCEL" in cs_sf_ids
+
+    res_cs_lower = engine.extract_single_job({
+        "job_id": "CS_LOWER",
+        "104職位名稱": "品管工程師",
+        "職位描述": "anti-rust coating, rust testing, and rust inspection.",
+    })
+    assert all(s["SKILL_ID"] != "SK_RUST" for s in res_cs_lower["skills"])
+
+
+def test_1114_case_sensitive_cjk_nearby_and_audit_consistency(tmp_path: Path):
+    """11/14 回歸：確認 _is_lowercased_word_in_english 與 CLI 一致（前後 6 字含全形符號/中文時進入規則審查並紀錄 exclude audit）。"""
+    bundle = {
+        "schema_version": "1114_web_bundle_v1",
+        "metadata": {
+            "base_lexicon_filename": "詞庫skill_lexicon_v13_20261111z.xlsx",
+            "base_lexicon_sha256": "722cd2832ffa",
+            "grouped_lexicon_filename": "詞庫skill_lexicon_v13_Chen_grouped_11_2026c.xlsx",
+            "grouped_lexicon_sha256": "31f5e3e2beeb",
+            "skill_count": 1,
+            "ai_skill_count": 0,
+            "ai_label_review_status": "Pending review (312 AI skills flagged)",
+        },
+        "skills": [
+            {
+                "SKILL_ID": "TW_LINE_001",
+                "SKILL_NAME": "LINE Official Account Management",
+                "SKILL_NAME_ZH": "LINE官方帳號經營",
+                "Keywords": "Line",
+                "Case_Sensitive_Keywords": "Line",
+                "Skill_group10_code": 5,
+                "Skill_group10": "管理、商業、法遵與治理技能",
+            }
+        ],
+    }
+    bundle_path = tmp_path / "mini_line.json.gz"
+    with gzip.open(bundle_path, "wt", encoding="utf-8") as f:
+        json.dump(bundle, f, ensure_ascii=False)
+
+    engine = WebSkillEngine(bundle_path=str(bundle_path))
+    res = engine.extract_single_job({
+        "ID": "12644334",
+        "104職位名稱": "美髮助理",
+        "職位描述": "聯絡電話:0983111024．Line ID:protein1024",
+    })
+    assert res["skills"] == []
+    assert any(
+        r.get("SKILL_ID") == "TW_LINE_001" and r.get("decision") == "exclude"
+        for r in res["audit_records"]
+    )
+
+
+def test_1114_ai_review_status_dynamic_and_missing_unknown(tmp_path: Path):
+    """11/14 回歸：AI Label Review Status 依實際 AI 技能數動態顯示 315，缺少標記欄位時回傳 Unknown 而非 0。"""
+    bundle_315 = {
+        "schema_version": "1114_web_bundle_v1",
+        "metadata": {
+            "base_lexicon_filename": "詞庫skill_lexicon_v13_20261111z.xlsx",
+            "base_lexicon_sha256": "722cd2832ffa",
+            "grouped_lexicon_filename": "詞庫skill_lexicon_v13_Chen_grouped_11_2026c.xlsx",
+            "grouped_lexicon_sha256": "31f5e3e2beeb",
+            "skill_count": 26471,
+            "ai_skill_count": 315,
+            "ai_label_review_status": "Pending review (312 AI skills flagged)",
+        },
+        "skills": [
+            {
+                "SKILL_ID": "TW_AI_001",
+                "SKILL_NAME": "Midjourney",
+                "SKILL_NAME_ZH": "Midjourney",
+                "Keywords": "Midjourney",
+                "Is_AI_Skill": True,
+                "Skill_group10_code": 8,
+                "Skill_group10": "資訊科技、軟體、資料與AI技能",
+            }
+        ],
+    }
+    p315 = tmp_path / "b315.json.gz"
+    with gzip.open(p315, "wt", encoding="utf-8") as f:
+        json.dump(bundle_315, f, ensure_ascii=False)
+    h315 = WebSkillEngine(bundle_path=str(p315)).health_info()
+    assert h315["ai_skill_count"] == 315
+    assert h315["ai_label_review_status"] == "Pending review (315 AI skills flagged)"
+
+    bundle_missing = {
+        "schema_version": "1114_web_bundle_v1",
+        "metadata": {
+            "base_lexicon_filename": "custom.xlsx",
+            "skill_count": 1,
+        },
+        "skills": [
+            {
+                "SKILL_ID": "SK_PY",
+                "SKILL_NAME": "Python",
+                "SKILL_NAME_ZH": "Python",
+                "Keywords": "Python",
+                "Skill_group10_code": 8,
+                "Skill_group10": "資訊科技、軟體、資料與AI技能",
+            }
+        ],
+    }
+    pmiss = tmp_path / "bmiss.json.gz"
+    with gzip.open(pmiss, "wt", encoding="utf-8") as f:
+        json.dump(bundle_missing, f, ensure_ascii=False)
+    hmiss = WebSkillEngine(bundle_path=str(pmiss)).health_info()
+    assert hmiss["ai_label_review_status"] == "Unknown"

@@ -35,11 +35,37 @@ except Exception:
     pass
 jieba.setLogLevel(60)
 
-CODE_VERSION = "20261111_web_ac_v1"
-RULE_VERSION = "20261111_evidence_merged_v1"
+from src.ac_rules_1114 import (
+    CODE_VERSION,
+    RULE_VERSION,
+    _ACRONYM_CONTEXT_REQUIRED,
+    _CONTEXT_EXCLUSION_RULES,
+    is_context_excluded,
+    is_negated,
+    lacks_required_context,
+)
+
 MAX_BATCH_JOBS = 100
 MAX_FIELD_CHARS = 30000
 GROUP10_SKILL_SEPARATOR = "｜"
+
+
+def _resolve_git_commit_sha() -> str:
+    env_sha = os.environ.get("VERCEL_GIT_COMMIT_SHA", "").strip()
+    if env_sha:
+        return env_sha[:12]
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(Path(__file__).resolve().parent.parent),
+            stderr=subprocess.DEVNULL,
+            timeout=1,
+        )
+        sha = out.decode("utf-8", errors="ignore").strip()
+        return sha or "Unknown"
+    except Exception:
+        return "Unknown"
 
 EXPECTED_GROUP10: Dict[int, str] = {
     1: "認知、分析與創新技能",
@@ -145,23 +171,21 @@ def _normalize_ascii_hyphen(text: str) -> str:
     return re.sub(r"(?<=[A-Za-z0-9])-(?=[A-Za-z0-9])", " ", text)
 
 
+_RE_CJK_NEARBY = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
+
+
 def _is_lowercased_word_in_english(text_case: str, start: int, end: int) -> bool:
+    """原文 text_case[start:end+1] 是全小寫或首字大寫的一般英文寫法，且前後6字內沒有中文/全形符號。"""
     if start < 0 or end >= len(text_case):
         return False
-    orig = text_case[start:end + 1]
-    if orig.isupper():
+    word = text_case[start:end + 1]
+    if word.endswith("s") and len(word) > 2:
+        word = word[:-1]
+    letters = re.sub(r"[^A-Za-z]", "", word)
+    if not letters or not (letters.islower() or (letters[0].isupper() and letters[1:].islower())):
         return False
-    prev_ch = text_case[start - 1] if start > 0 else " "
-    next_ch = text_case[end + 1] if end + 1 < len(text_case) else " "
-    if prev_ch.isascii() and prev_ch.isalpha():
-        return True
-    if next_ch.isascii() and next_ch.isalpha():
-        return True
-    if re.search(r"[A-Za-z]\s+$", text_case[max(0, start - 20):start]):
-        return True
-    if re.search(r"^\s+[A-Za-z]", text_case[end + 1:end + 21]):
-        return True
-    return False
+    around = text_case[max(0, start - 6):start] + text_case[end + 1:end + 7]
+    return not _RE_CJK_NEARBY.search(around)
 
 
 def _singularize_word(word: str, case_word: Optional[str] = None) -> str:
@@ -526,82 +550,6 @@ def is_marketing_target_or_domain_modifier(snippet: str, matched_term: str) -> b
     return False
 
 
-_CONTEXT_EXCLUSION_RULES: Dict[str, List[str]] = {
-    "KS1234J655K2L8W48Y6J": [r"採購單.{0,8}(?:對帳|核對|核銷|請款|結帳|歸檔|建檔)|(?:對帳|核對|核銷|請款).{0,8}採購單"],
-    "KS4429T75Y20S1H409T2": [r"對帳單"],
-    "KS4411S68TJXPT4G69P1": [r"營業所"],
-    "ESAD033D8B6087100FC2": [r"專案負責人|專案進度|專案管理|專案執行|專案溝通|專案協調|專案開發|專案時程|專案報告|專案規劃|專案追蹤"],
-    "KS126026W7HQ4KHY9D9X": [r"客戶(?:的)?需求|使用者需求|產品需求|業務需求|專案需求|系統需求|市場需求|功能需求|收集需求|需求訪談|需求分析|需求確認|需求評估|規格需求"],
-    "KS440C86P8B0FGYH6D80": [r"人員調度|人員派遣|人力調度|人力資源|派工"],
-    "KS1236W6Q4S5Z0P1053G": [r"作業員|產線人員|現場人員|技術員|品保人員|品管人員|作業人員|工作內容|作業流程|作業時間|作業標準|作業規範|標準作業|現場作業|清潔作業|包裝作業|加工作業|組裝作業|輪班作業|夜間作業|高空作業|吊掛作業"],
-    "KS1263F6770C1F1Y1Q22": [r"工作環境|工作場所|環境整潔|環境衛生|環境清潔|環境維護|環境安全|環境單純|舒適環境|辦公環境|職場環境|環境保護|環境永續|友善環境|工作氛圍|氣氛環境"],
-    "KS1205R67Y8B3L2T8L3V": [r"環境安全|安全衛生|安全第一|安全作業|安全規範|安全帽|安全鞋|安全帶|安全門|安全設施|行車安全|交通安全|食品安全|資訊安全|網路安全|居家安全|環境整潔|安全舒適"],
-    "KS4419M6X7Y8323L4L11": [r"服務人員|門市人員|客服人員|服務業|服務態度|服務熱忱|顧客服務|客戶服務|優質服務|專業服務|售後服務|餐飲服務|飯店服務|外場服務|內場服務|為您服務|服務品質|服務精神"],
-    "KS440266V0Q9W5S70G12": [r"主動積極|積極主動|認真負責|細心負責|團隊精神|團隊合作|學習能力|抗壓性|抗壓力|溝通能力|配合度高|工作熱忱|有責任感|責任心"],
-    "BGSED41BF182E7A55A17": [
-        r"(?<![a-z])rtl(?![a-z])", r"(?<![a-z])lint(?![a-z])", r"verilog", r"clock",
-        r"(?<![a-z])sta(?![a-z])", r"(?<![a-z])dft(?![a-z])", r"synthesis", r"時脈", r"(?<![a-z])lec(?![a-z])",
-    ],
-    "KS1239Z71LLXDMTGRJ5S": [r"氣候", r"生態", r"永續", r"(?<![a-z])esg(?![a-z])"],
-    "ES92A402F893456D877B": [
-        r"福利", r"禮[金品券]", r"獎金", r"團(體)?保", r"勞健保", r"保險", r"津貼", r"補助",
-        r"聚餐", r"尾牙", r"旅遊", r"制服", r"優惠", r"折扣", r"特約", r"寵物",
-    ],
-    "BGS423420828D2785973": [r"勞健保", r"獎金", r"福利", r"禮[品金券]", r"員工", r"年終", r"健康檢查", r"制服", r"休假", r"週休"],
-    "ES93F8B89DCFEB3D8E20": [r"客戶", r"保險", r"人力"],
-    "KS43I7T7CU4Q66EGVQLU": [r"指導書", r"供應商", r"協力廠", r"廠商"],
-    "KS127MC6FMH3R4C3N5PZ": [
-        r"pci[\s\-]?dss", r"支付", r"payment", r"信用卡", r"資安", r"資訊安全", r"資料安全", r"security", r"27001",
-    ],
-}
-
-_W = r"(?<![a-z])"
-_CLINICAL = [
-    r"臨床", r"clinical", r"trial", r"試驗", _W + r"ich(?![a-z])", _W + r"glp(?![a-z])",
-    _W + r"gmp(?![a-z])", _W + r"irb(?![a-z])", _W + r"cr[aco](?![a-z])",
-    r"藥", r"pharma", r"受試", r"sponsor", r"醫",
-]
-_CLOUD = [
-    r"雲", r"cloud", _W + r"aws(?![a-z])", r"azure", r"docker", r"kubernetes", _W + r"k8s",
-    r"bigquery", r"devops", r"ci/cd", r"linux", r"deploy", r"部署", _W + r"gke(?![a-z])",
-    r"vertex", r"terraform", r"容器", r"container", r"微服務", r"阿里", r"server", r"伺服器",
-    _W + r"api(?![a-z])", _W + r"sql(?![a-z])", r"python", r"java", r"平台",
-]
-_NEAR = 60
-_CLINICAL_NEAR = [
-    r"臨床", r"clinical", r"trial", r"試驗", _W + r"ich(?![a-z])", _W + r"glp(?![a-z])",
-    _W + r"gmp(?![a-z])", r"受試", r"sponsor",
-]
-_CLOUD_NEAR = [
-    r"雲", r"cloud", _W + r"aws(?![a-z])", r"azure", r"docker", r"kubernetes", _W + r"k8s",
-    r"bigquery", r"devops", r"部署", r"deploy", r"阿里",
-    r"network", r"網路", r"data center", r"資料中心",
-]
-_ACRONYM_CONTEXT_REQUIRED = {
-    "KS124ZQ6RS1V188JSCTX": ("GCP", 300, _CLINICAL, _CLOUD_NEAR),
-    "ESC7869CF7378283E0AA": ("GCP", 300, _CLOUD, _CLINICAL_NEAR),
-    "KS1220H6CP1BQGH9STNK": ("GCP", 300, _CLOUD, _CLINICAL_NEAR),
-    "ES63C92B9AE0C7FC326A": ("GDP", 300, [
-        r"藥", r"pharma", r"醫", r"運銷", r"distribution", _W + r"gmp(?![a-z])", _W + r"gsp(?![a-z])",
-        r"冷鏈", r"cold chain", r"溫[溼濕]度", r"倉", r"物流", r"logistic", r"品質", r"quality",
-        _W + r"iso(?![a-z])", r"healthcare", _W + r"cmo(?![a-z])", r"compliance", r"法規", r"稽核", r"疫苗",
-        r"庫存", r"進貨", r"出貨", r"調撥",
-    ], []),
-    "ESA5839C44D0970CF79F": ("GO", 150, [
-        r"python", r"java", r"c\+\+", r"(?<![a-z])c#", r"rust", r"golang", r"node", r"php", r"ruby",
-        r"kotlin", r"swift", r"scala", r"typescript", r"程式", r"後端", r"backend", r"語言", r"language",
-        r"programming", r"docker", r"kubernetes", r"microservice", r"微服務", r"grpc", r"(?<![a-z])api(?![a-z])",
-        r"開發", r"develop", r"software", r"軟體",
-    ], [
-        r"go[\s\-]*green", r"go[\s\-]*getter", r"extra mile", r"go[\s\-]*live", r"go[\s\-]*to[\s\-]*market",
-        r"let'?s go", r"go[\s\-]*go",
-    ]),
-    "KS127MD73WL7RSVDW53X": ("PCI", 300, [
-        _W + r"dss(?![a-z])", r"支付", r"payment", r"信用卡", r"credit card", r"刷卡", r"金流", r"收單",
-        r"資安", r"資訊安全", r"security", r"27001", r"compliance", r"法遵",
-    ], []),
-}
-
 _TITLE_DISAMBIGUATION = {
     "開發": [
         (["軟體", "韌體", "程式", "資訊", "app", "APP", "IT"], "KS120L96KMYTDJ48NRSH"),
@@ -627,27 +575,6 @@ _LOCAL_CONTEXT_RULES = {
     "開發": [(r"產品[之的]?開發", "KS1270P6SLFCFT476Y3R")],
     "教授": [(r"教授.{0,6}英文", "KS4418W709S96G1PP7DS")],
 }
-
-
-def is_context_excluded(skill_id: str, snippet: str) -> bool:
-    rules = _CONTEXT_EXCLUSION_RULES.get(skill_id)
-    if not rules:
-        return False
-    return any(re.search(p, snippet, re.IGNORECASE) for p in rules)
-
-
-def lacks_required_context(skill_id: str, matched_term: str, raw_text: str, start: int, end: int) -> bool:
-    rule = _ACRONYM_CONTEXT_REQUIRED.get(skill_id)
-    if not rule:
-        return False
-    acronym, window, patterns, near_deny = rule
-    if matched_term.strip().upper() != acronym:
-        return False
-    near = raw_text[max(0, start - _NEAR): end + _NEAR + 1]
-    if any(re.search(p, near, re.IGNORECASE) for p in near_deny):
-        return True
-    ctx = raw_text[max(0, start - window): end + window + 1]
-    return not any(re.search(p, ctx, re.IGNORECASE) for p in patterns)
 
 
 def _suppress_shorter_matches(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -869,19 +796,32 @@ class WebSkillEngine:
         self.automaton.make_automaton()
 
     def health_info(self) -> Dict[str, Any]:
+        raw_ai_cnt = self.metadata.get("ai_skill_count")
+        has_ai_cnt = raw_ai_cnt is not None
+        ai_cnt = int(raw_ai_cnt) if has_ai_cnt else 0
+        if not self.ready:
+            ai_review_status = "Unknown"
+        elif has_ai_cnt and ai_cnt > 0:
+            ai_review_status = f"Pending review ({ai_cnt} AI skills flagged)"
+        else:
+            ai_review_status = self.metadata.get("ai_label_review_status") or "Unknown"
         return {
             "status": "ok" if self.ready else "lexicon_missing",
             "ready": self.ready,
+            "engine_version": CODE_VERSION,
             "code_version": CODE_VERSION,
             "rule_version": RULE_VERSION,
             "llm_enabled": False,
-            "engine": "Aho-Corasick + 11/11 Rule-based Evidence Review",
-            "lexicon_version": self.metadata.get("base_lexicon_filename", "未載入"),
-            "lexicon_sha256": self.metadata.get("base_lexicon_sha256", ""),
-            "grouped_version": self.metadata.get("grouped_lexicon_filename", "未載入"),
-            "grouped_sha256": self.metadata.get("grouped_lexicon_sha256", ""),
+            "engine": "Aho-Corasick + 11/14 Rule-based Evidence Review",
+            "lexicon_version": self.metadata.get("base_lexicon_filename") or "Unknown",
+            "lexicon_sha256": self.metadata.get("base_lexicon_sha256") or "Unknown",
+            "grouped_version": self.metadata.get("grouped_lexicon_filename") or "Unknown",
+            "g11c_sha256": self.metadata.get("grouped_lexicon_sha256") or "Unknown",
+            "grouped_sha256": self.metadata.get("grouped_lexicon_sha256") or "Unknown",
+            "git_commit_sha": _resolve_git_commit_sha(),
             "skill_count": self.metadata.get("skill_count", 0),
-            "ai_skill_count": self.metadata.get("ai_skill_count", 0),
+            "ai_skill_count": ai_cnt,
+            "ai_label_review_status": ai_review_status,
             "error": self.load_error,
         }
 
@@ -985,6 +925,8 @@ class WebSkillEngine:
             is_ctx_excl = is_context_excluded(sid, snippet) or lacks_required_context(
                 sid, matched_str, raw_text, max(0, orig_s), max(0, orig_e)
             )
+            if field_label == "職位描述" and orig_s > 0 and is_negated(raw_text, orig_s):
+                is_ctx_excl = True
 
             results.append({
                 "skill": cand["skill"],

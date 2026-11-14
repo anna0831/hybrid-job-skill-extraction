@@ -111,15 +111,24 @@
       const resp = await fetch("/api/health");
       const data = await resp.json();
       if (data.ready) {
-        healthStatusBadge.textContent = "系統就緒（11/11 AC + Rules）";
+        const engineVersion = data.engine_version || data.code_version || "Unknown";
+        const lexiconVersion = data.lexicon_version || "Unknown";
+        const lexiconSha = data.lexicon_sha256 ? data.lexicon_sha256.slice(0, 12) : "Unknown";
+        const g11cSha = (data.g11c_sha256 || data.grouped_sha256) ? (data.g11c_sha256 || data.grouped_sha256).slice(0, 12) : "Unknown";
+        const gitSha = data.git_commit_sha || "Unknown";
+        const skillCount = data.skill_count != null ? data.skill_count : "Unknown";
+        const aiStatus = data.ai_label_review_status || "Unknown";
+        healthStatusBadge.textContent = "系統就緒（11/14 AC + Rules）";
         healthStatusBadge.className = "badge badge-ok";
         healthDetails.textContent =
-          `詞庫：${data.lexicon_version}（${data.skill_count} 項技能）｜` +
-          `十大分類：${data.grouped_version}｜程式版本：${data.code_version}`;
+          `Engine Version：${engineVersion}｜Lexicon Version：${lexiconVersion}｜` +
+          `Lexicon SHA256：${lexiconSha}｜G11c SHA256：${g11cSha}｜` +
+          `Git Commit SHA：${gitSha}｜Skill Count：${skillCount}｜` +
+          `AI Label Review Status：${aiStatus}`;
       } else {
         healthStatusBadge.textContent = "詞庫尚未建置";
         healthStatusBadge.className = "badge badge-warn";
-        healthDetails.textContent = data.error || "請先產生 11/11 Web 詞庫檔";
+        healthDetails.textContent = data.error || "請先產生 11/14 Web 詞庫檔";
       }
     } catch (err) {
       healthStatusBadge.textContent = "無法連線後端 API";
