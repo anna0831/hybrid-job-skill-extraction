@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>104 技能擷取系統（離線雙擊版 11/14 AC + Rules）</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <section class="card">
+      <div class="header">
+        <div>
+          <h1>104 技能擷取系統 — 純瀏覽器離線版</h1>
+          <p class="subtitle">直接雙擊開啟（<code>file://</code>），100% 離線執行 11/14 AC + Rules，無需 Python、FastAPI、localhost 或網路連線。</p>
+        </div>
+        <span id="engineStatusBadge" class="badge badge-warn">等待載入本機詞庫</span>
+      </div>
+      <div id="versionBar" class="version-bar">
+        Engine Version：20261114_web_ac_v1_offline_js｜Lexicon Version：尚未載入｜Lexicon SHA256：—｜G11c SHA256：—｜Skill Count：—｜AI Label Review Status：Unknown
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Step 1：載入經授權的本機詞庫（<code>lexicon_bundle.json.gz</code>）</h2>
+      <p class="subtitle">本頁面不內嵌任何正式詞庫，請使用下方按鈕選取您本機的 <code>lexicon_bundle.json.gz</code>（支援 gzip 瀏覽器端解壓，資料全程留在本機記憶體）。</p>
+      <div class="row-actions">
+        <input type="file" id="lexiconFileInput" accept=".gz,.json" />
+        <span id="lexiconLoadMsg" class="subtitle">尚未選擇詞庫檔案</span>
+      </div>
+    </section>
+
+    <div id="errorBanner" class="notice notice-err hidden"></div>
+
+    <section class="card">
+      <div class="tabs">
+        <button id="tabSingle" class="tab-btn active" type="button">A. 單篇職缺測試</button>
+        <button id="tabBatch" class="tab-btn" type="button">B. Excel (.xlsx) 批次上傳（上限 100 筆）</button>
+      </div>
+
+      <div id="singlePanel">
+        <div class="grid-2">
+          <div>
+            <label for="singleJobId">Job ID（選填）</label>
+            <input type="text" id="singleJobId" placeholder="例如：TEST_001" />
+          </div>
+          <div>
+            <label for="singleTitle">職缺名稱（104職位名稱）</label>
+            <input type="text" id="singleTitle" placeholder="例如：資料工程師" />
+          </div>
+        </div>
+        <div style="margin-top: 12px;">
+          <label for="singleDesc">職位描述</label>
+          <textarea id="singleDesc" placeholder="貼上 104 職位描述（支援否定句、福利段落、縮寫消歧等 11/14 規則測試）"></textarea>
+        </div>
+        <div class="grid-2" style="margin-top: 12px;">
+          <div>
+            <label for="singleSkills">工作技能</label>
+            <input type="text" id="singleSkills" placeholder="例如：Python、SQL" />
+          </div>
+          <div>
+            <label for="singleTools">電腦工具</label>
+            <input type="text" id="singleTools" placeholder="例如：Excel、GCP" />
+          </div>
+        </div>
+        <div class="row-actions">
+          <button id="runSingleBtn" class="btn btn-primary" type="button" disabled>開始離線擷取</button>
+          <button id="fillSampleBtn" class="btn btn-secondary" type="button">填入 11/14 規則測試範例</button>
+        </div>
+      </div>
+
+      <div id="batchPanel" class="hidden">
+        <p class="subtitle">選擇 104 職缺 <code>.xlsx</code> 檔案（自動排除「工作角色 = 兼職」，保留原始 Job ID，單次最多處理 100 筆）。</p>
+        <div class="row-actions">
+          <input type="file" id="xlsxFileInput" accept=".xlsx" disabled />
+          <button id="exportXlsxBtn" class="btn btn-primary" type="button" disabled>匯出四工作表 Excel (.xlsx)</button>
+        </div>
+        <div id="batchLoadInfo" class="notice notice-info hidden" style="margin-top: 12px;"></div>
+      </div>
+    </section>
+
+    <section id="resultsSection" class="card hidden">
+      <div class="header" style="margin-bottom: 12px;">
+        <h2 style="margin: 0;">分析總覽與技能明細</h2>
+        <button id="exportSingleXlsxBtn" class="btn btn-secondary hidden" type="button">匯出此結果為 4-Sheet .xlsx</button>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-box"><div class="kpi-label">職缺總數</div><div id="kpiJobs" class="kpi-value">0</div></div>
+        <div class="kpi-box"><div class="kpi-label">有技能職缺數</div><div id="kpiWithSkills" class="kpi-value">0</div></div>
+        <div class="kpi-box"><div class="kpi-label">零技能職缺數</div><div id="kpiZeroSkills" class="kpi-value">0</div></div>
+        <div class="kpi-box"><div class="kpi-label">技能紀錄總數</div><div id="kpiSkillsTotal" class="kpi-value">0</div></div>
+        <div class="kpi-box"><div class="kpi-label">命中 G1–G10 類數</div><div id="kpiGroups" class="kpi-value">0</div></div>
+        <div class="kpi-box"><div class="kpi-label">AI 候選技能數</div><div id="kpiAiSkills" class="kpi-value">0</div></div>
+      </div>
+
+      <div id="batchExplorer" class="hidden" style="margin-bottom: 18px;">
+        <div class="row-actions" style="justify-content: space-between; margin-bottom: 8px;">
+          <div style="flex: 1; max-width: 340px;">
+            <input type="search" id="batchSearchInput" placeholder="搜尋 Job ID 或職缺名稱..." />
+          </div>
+          <div class="row-actions" style="margin-top: 0;">
+            <button id="prevJobBtn" class="btn btn-secondary" type="button">上一筆</button>
+            <span id="batchPosLabel" class="subtitle">第 0 / 0 筆</span>
+            <button id="nextJobBtn" class="btn btn-secondary" type="button">下一筆</button>
+          </div>
+        </div>
+        <div class="table-wrap" style="max-height: 240px;">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Job ID</th><th>職缺名稱</th><th>技能數</th><th>AI 技能數</th></tr>
+            </thead>
+            <tbody id="batchJobsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3>G1–G10 技能分類分布</h3>
+      <div id="groupChart" style="margin-bottom: 18px;"></div>
+
+      <h3 id="detailTitle">技能明細表</h3>
+      <div id="zeroSkillMsg" class="notice notice-info hidden">此職缺未擷取到技能（0 項）。</div>
+      <div class="table-wrap" style="margin-bottom: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Skill_Name_ZH</th>
+              <th>Skill_ID</th>
+              <th>Category / Subcategory</th>
+              <th>G1–G10</th>
+              <th>Is_AI_Skill</th>
+              <th>MATCHED_FROM</th>
+              <th>匹配證據</th>
+            </tr>
+          </thead>
+          <tbody id="skillsDetailBody"></tbody>
+        </table>
+      </div>
+
+      <h3>Audit 排除與查核紀錄</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Decision</th>
+              <th>Skill_ID</th>
+              <th>Skill_Name_ZH</th>
+              <th>Matched Term</th>
+              <th>排除／查核原因</th>
+              <th>證據片段</th>
+            </tr>
+          </thead>
+          <tbody id="auditBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- 100% 離線本機 JS 依賴（無 CDN、無 fetch） -->
+  <script src="./vendor/jieba_dict.js"></script>
+  <script src="./vendor/jieba_lite.js"></script>
+  <script src="./vendor/xlsx_lite.js"></script>
+  <script src="./vendor/rules_1114_data.js"></script>
+  <script src="./vendor/engine_1114.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
+

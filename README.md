@@ -41,7 +41,16 @@ SQLite long format 查核：新增分批轉檔、完整原始職缺補入、每�
 
 ---
 
-## 三、兩位研究助理（RA）共用 `app.html` 測試說明
+## 三、兩位研究助理（RA）共用測試介面（三種使用模式）
+
+### 模式一：雙擊離線單機版（`web-offline/app.html`，免 Python / 免 Terminal）
+
+適合研究助理直接在本機 Chrome **雙擊 `web-offline/app.html`（`file://` 協定）**執行完整 11/14 AC + Rules 技能擷取（100/100 ExactMatch 驗證通過）：
+- 無須啟動 FastAPI / Uvicorn、無須安裝 Python、無須 `localhost` 或網路連線。
+- 基於安全隔離設計，正式詞庫不內嵌於 HTML；開啟頁面後手動選取本機 `web_data/lexicon_bundle.json.gz` 即可於瀏覽器記憶體完成解壓、單筆分析、Excel 批次上傳（上限 100 筆、自動排除兼職）與 4 工作表 `.xlsx` 匯出（`Skills_Long`、`Group10_Summary`、`Jobs`、`Audit`）。
+- 操作教學見 **[OFFLINE_RA_TESTING_GUIDE.md](docs/OFFLINE_RA_TESTING_GUIDE.md)**；技術可行性與 CLI 等價驗證見 **[OFFLINE_TECHNICAL_FEASIBILITY.md](docs/OFFLINE_TECHNICAL_FEASIBILITY.md)**。
+
+### 模式二：本機 FastAPI 研究測試版（`web/app.html`）
 
 > [!IMPORTANT]
 > **請勿直接雙擊開啟 `web/app.html`（`file://` 協定）**，必須啟動本機 FastAPI 伺服器後以 `http://127.0.0.1:8000/app.html`（或 `http://127.0.0.1:8000/`）開啟。
@@ -57,7 +66,11 @@ export RESEARCH_API_TOKEN="your-local-test-token"
 .venv/bin/uvicorn api.index:app --host 127.0.0.1 --port 8000
 ```
 
-完整 10 步驟同步流程、Fixed Regression（`seed=42` 固定回歸集）vs. Rolling Discovery（71 城市月份滾動探索集）測試規範，以及線上受保護分享方案，請參閱 **[RA_WEB_TESTING_GUIDE.md](docs/RA_WEB_TESTING_GUIDE.md)**。
+完整 10 步驟同步流程、Fixed Regression（`seed=42` 固定回歸集）vs. Rolling Discovery（71 城市月份滾動探索集）測試規範，請參閱 **[RA_WEB_TESTING_GUIDE.md](docs/RA_WEB_TESTING_GUIDE.md)**。
+
+### 模式三：受保護的 Vercel Preview（尚未部署）
+
+- 正式 26,471 項技能詞庫尚未取得雲端部署授權，目前**尚未部署**至 Vercel；公開 Repo 亦嚴格排除 `web_data/lexicon_bundle.json.gz` 與正式研究詞庫。
 
 ---
 
