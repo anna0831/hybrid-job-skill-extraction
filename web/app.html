@@ -2,10 +2,232 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url=/" />
-  <title>104 職缺技能擷取研究展示系統</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>104 職缺技能擷取研究展示系統（AC + Rules）</title>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <p>正在前往 <a href="/">104 職缺技能擷取研究展示系統</a>…</p>
+  <div class="container">
+    <header class="header">
+      <h1>104 職缺技能擷取研究展示系統</h1>
+      <p>11/11 研究版 Aho-Corasick + 上下文規則與十大技能分類分析系統</p>
+    </header>
+
+    <section class="health-bar" id="healthBar">
+      <span class="badge badge-ok" id="healthStatusBadge">檢查系統中…</span>
+      <span id="healthDetails">正在載入詞庫與版本資訊…</span>
+    </section>
+
+    <div id="errorBanner" class="error-box hidden"></div>
+    <div id="noticeBanner" class="notice-box hidden" style="margin-bottom:16px;"></div>
+
+    <section class="card">
+      <h2>A. 職缺資料選取與輸入</h2>
+      <div class="tabs">
+        <button type="button" class="tab-btn active" id="tabDatasetBtn">縣市／月份抽樣分析</button>
+        <button type="button" class="tab-btn" id="tabSingleBtn">單篇手動分析</button>
+        <button type="button" class="tab-btn" id="tabUploadBtn">上傳 Excel (.xlsx)</button>
+      </div>
+
+      <div id="datasetPanel">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="citySelect">選擇縣市</label>
+            <select id="citySelect" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.95rem;background:#fff;">
+              <option value="">載入中…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="monthSelect">選擇資料月份</label>
+            <select id="monthSelect" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.95rem;background:#fff;">
+              <option value="">載入中…</option>
+            </select>
+          </div>
+        </div>
+        <div id="datasetMetaBox" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:0.9rem;color:var(--muted);">
+          正在讀取可用資料集資訊…
+        </div>
+      </div>
+
+      <div id="singlePanel" class="hidden">
+        <div class="demo-row">
+          <span class="demo-label">示範資料（點選自動帶入）：</span>
+          <button type="button" class="btn btn-sm" data-demo="data_engineer">示範資料 1：資料工程師</button>
+          <button type="button" class="btn btn-sm" data-demo="semiconductor">示範資料 2：半導體工程師</button>
+          <button type="button" class="btn btn-sm" data-demo="admin">示範資料 3：行政人員</button>
+          <button type="button" class="btn btn-sm" data-demo="welfare_trap">示範資料 4：福利誤抓測試</button>
+        </div>
+
+        <div class="form-group">
+          <label for="jobTitle">職缺名稱 *</label>
+          <input id="jobTitle" type="text" placeholder="例如：資料工程師" />
+        </div>
+
+        <div class="form-group">
+          <label for="jobDesc">工作內容 *</label>
+          <textarea id="jobDesc" rows="7" placeholder="請貼上 104 職缺描述內文…"></textarea>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="jobSkills">工作技能（選填）</label>
+            <input id="jobSkills" type="text" placeholder="例如：資料處理、系統分析" />
+          </div>
+          <div class="form-group">
+            <label for="computerTools">電腦工具（選填）</label>
+            <input id="computerTools" type="text" placeholder="例如：Python, SQL, Docker" />
+          </div>
+        </div>
+      </div>
+
+      <div id="uploadPanel" class="hidden">
+        <div class="form-group">
+          <label for="xlsxFileInput">選擇職缺 Excel 檔案（.xlsx，單次最多 100 個不重複職缺，自動排除「兼職」）</label>
+          <input id="xlsxFileInput" type="file" accept=".xlsx" />
+        </div>
+        <p style="font-size:0.88rem;color:var(--muted);margin-top:0;">
+          支援標準 104 清洗後欄位（工作編號／ID、資料月份、工作角色、104職位名稱、職位描述、工作技能、電腦工具）。
+        </p>
+      </div>
+
+      <div class="actions-row">
+        <button type="button" class="btn btn-primary" id="analyzeBtn">分析選定資料集</button>
+        <button type="button" class="btn" id="clearBtn">清空</button>
+        <button type="button" class="btn btn-excel hidden" id="downloadXlsxBtn">下載完整分析報告 (.xlsx)</button>
+      </div>
+    </section>
+
+    <section class="card hidden" id="resultsSection">
+      <h2>B. 分析結果</h2>
+      <div class="kpi-grid kpi-grid-6" id="kpiGrid">
+        <div class="kpi-box">
+          <div class="kpi-title" id="kpiLabel1">職缺總數</div>
+          <div class="kpi-value" id="kpiVal1">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title" id="kpiLabel2">有技能職缺數</div>
+          <div class="kpi-value" id="kpiVal2">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title" id="kpiLabel3">零技能職缺數</div>
+          <div class="kpi-value" id="kpiVal3">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title" id="kpiLabel4">技能紀錄總數</div>
+          <div class="kpi-value" id="kpiVal4">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title" id="kpiLabel5">命中的 G1–G10 分類數</div>
+          <div class="kpi-value" id="kpiVal5">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title" id="kpiLabel6">AI 技能數</div>
+          <div class="kpi-value" id="kpiVal6">0</div>
+        </div>
+      </div>
+
+      <div id="batchResultDetails" class="hidden" style="margin-bottom:22px;">
+        <h3>職缺清單（點擊任一職缺即可於下方查看該筆技能明細）</h3>
+        <div class="batch-toolbar">
+          <input id="jobSearchInput" type="text" placeholder="搜尋 Job ID 或職缺名稱…" style="flex:1;min-width:180px;" />
+          <select id="jobSortSelect">
+            <option value="default">排序：原始順序</option>
+            <option value="skills_desc">排序：技能數由多到少</option>
+            <option value="skills_asc">排序：技能數由少到多</option>
+          </select>
+          <button type="button" class="btn btn-sm" id="prevJobBtn">上一筆</button>
+          <button type="button" class="btn btn-sm" id="nextJobBtn">下一筆</button>
+          <button type="button" class="btn btn-sm" id="showAllSkillsBtn">查看全批彙總</button>
+        </div>
+        <div class="table-wrap" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Job ID</th>
+                <th>資料月份</th>
+                <th>職缺名稱</th>
+                <th>技能數</th>
+                <th>是否為零技能職缺</th>
+              </tr>
+            </thead>
+            <tbody id="batchJobsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="skillDetailsSection">
+        <h3 id="skillScopeHeading">技能分類分布（G1–G10）</h3>
+        <div class="chart-list" id="groupChart"></div>
+
+        <h3 style="margin-top:20px;" id="skillTableHeading">技能明細表</h3>
+        <div class="skill-chips" id="skillChips"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>技能名稱（中／英）</th>
+                <th>SKILL_ID</th>
+                <th>Category / Subcategory</th>
+                <th>G1–G10 分類</th>
+                <th>Is_AI_Skill</th>
+                <th>MATCHED_FROM</th>
+                <th>匹配證據</th>
+              </tr>
+            </thead>
+            <tbody id="skillsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="auditBlock" class="hidden" style="margin-top:20px;">
+        <h3>被排除候選與審查紀錄</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>職缺／Skill_ID</th>
+                <th>命中詞</th>
+                <th>決策</th>
+                <th>理由</th>
+                <th>原文片段</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>C. 如何運作（研究透明性說明）</h2>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <strong>1. 職缺文字</strong>
+          讀入職缺名稱、工作內容、工作技能與電腦工具，執行全形轉半形與中英文詞界前處理。
+        </div>
+        <div class="flow-step">
+          <strong>2. 關鍵字匹配</strong>
+          使用 Aho-Corasick 自動機一次掃描整份研究詞庫，並保留最長匹配與同義詞對齊。
+        </div>
+        <div class="flow-step">
+          <strong>3. 上下文規則過濾</strong>
+          自動切割公司介紹與員工福利段落，並套用大小寫、縮寫語意（GCP/GDP/PCI）與修飾詞排除規則。
+        </div>
+        <div class="flow-step">
+          <strong>4. 十大分類</strong>
+          依最新 G11c 對應表歸入 G1–G10 分類與 AI 技能標記；未對應項目誠實標示為「待分類」。
+        </div>
+        <div class="flow-step">
+          <strong>5. 顯示與匯出</strong>
+          即時呈現技能明細、證據片段與分類彙總，並可一鍵下載 4 工作表 Excel (.xlsx) 研究報告。
+        </div>
+      </div>
+      <div class="notice-box">
+        本版本採用 <strong>Aho-Corasick + Rules</strong>，不使用生成式 AI，結果仍可能有誤抓或漏抓。
+      </div>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
 </body>
 </html>

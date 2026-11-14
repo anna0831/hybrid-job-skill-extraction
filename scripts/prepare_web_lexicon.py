@@ -23,7 +23,8 @@ from typing import Any, Dict, Optional
 
 import openpyxl
 
-DEFAULT_BASE_FILENAME = "詞庫skill_lexicon_v13_20261111g.xlsx"
+DEFAULT_BASE_FILENAME = "詞庫skill_lexicon_v13_20261111z.xlsx"
+DEFAULT_BASE_FALLBACK_FILENAME = "詞庫skill_lexicon_v13_20261111g.xlsx"
 DEFAULT_GROUPED_FILENAME = "詞庫skill_lexicon_v13_Chen_grouped_11_2026c.xlsx"
 DEFAULT_ONEDRIVE_LEXICON_DIR = "/Users/anna/Library/CloudStorage/OneDrive-個人/ChenRA/AI_Job_project/詞庫"
 DEFAULT_OUTPUT_PATH = Path("web_data/lexicon_bundle.json.gz")
@@ -96,17 +97,19 @@ def _read_excel_rows(path: Path) -> tuple[list[str], list[dict[str, Any]]]:
     return headers, records
 
 
-def resolve_input_file(explicit: Optional[str], filename: str, search_dirs: list[Path]) -> Path:
+def resolve_input_file(explicit: Optional[str], filenames: str | tuple[str, ...], search_dirs: list[Path]) -> Path:
     if explicit:
         p = Path(explicit).expanduser().resolve()
         if not p.is_file():
             raise FileNotFoundError(f"找不到指定的詞庫檔案：{p}")
         return p
-    for d in search_dirs:
-        cand = d / filename
-        if cand.is_file():
-            return cand.resolve()
-    searched = ", ".join(str(d / filename) for d in search_dirs)
+    names = (filenames,) if isinstance(filenames, str) else filenames
+    for filename in names:
+        for d in search_dirs:
+            cand = d / filename
+            if cand.is_file():
+                return cand.resolve()
+    searched = ", ".join(str(d / name) for name in names for d in search_dirs)
     raise FileNotFoundError(
         f"找不到 11/11 正式詞庫檔案「{filename}」。已搜尋路徑：{searched}\n"
         "請使用 --base-lexicon / --grouped-lexicon 明確指定檔案路徑。"
@@ -203,7 +206,7 @@ def build_bundle(base_path: Path, grouped_path: Path) -> Dict[str, Any]:
         })
 
     return {
-        "schema_version": "1111_web_bundle_v1",
+        "schema_version": "1114_web_bundle_v1",
         "metadata": {
             "generated_at_utc": datetime.now(timezone.utc).isoformat(),
             "base_lexicon_filename": base_path.name,
@@ -212,6 +215,7 @@ def build_bundle(base_path: Path, grouped_path: Path) -> Dict[str, Any]:
             "grouped_lexicon_sha256": sha256_file(grouped_path),
             "skill_count": len(skills),
             "ai_skill_count": ai_count,
+            "ai_label_review_status": f"Pending review ({ai_count} AI skills flagged)",
             "group10_definitions": {str(k): v for k, v in EXPECTED_GROUP10.items()},
         },
         "skills": skills,
@@ -227,7 +231,11 @@ def main() -> int:
 
     search_dirs = [Path.cwd(), Path.cwd() / "lexicon", Path(DEFAULT_ONEDRIVE_LEXICON_DIR)]
     try:
-        base_path = resolve_input_file(args.base_lexicon, DEFAULT_BASE_FILENAME, search_dirs)
+        base_path = resolve_input_file(
+            args.base_lexicon,
+            (DEFAULT_BASE_FILENAME, DEFAULT_BASE_FALLBACK_FILENAME),
+            search_dirs,
+        )
         grouped_path = resolve_input_file(args.grouped_lexicon, DEFAULT_GROUPED_FILENAME, search_dirs)
     except FileNotFoundError as exc:
         print(f"❌ {exc}", file=sys.stderr)
